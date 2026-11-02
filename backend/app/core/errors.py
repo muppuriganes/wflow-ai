@@ -57,7 +57,9 @@ class PlanLimitExceededError(AppError):
     status_code = 402
     code = "plan_limit_reached"
 
-    def __init__(self, message: str, *, metric: str | None = None, limit: int | None = None, used: int | None = None) -> None:
+    def __init__(
+        self, message: str, *, metric: str | None = None, limit: int | None = None, used: int | None = None
+    ) -> None:
         details = {}
         if metric is not None:
             details["metric"] = metric
@@ -71,6 +73,11 @@ class PlanLimitExceededError(AppError):
 class OrganizationSuspendedError(AppError):
     status_code = 403
     code = "organization_suspended"
+
+
+class AccountLockedError(AppError):
+    status_code = 429
+    code = "account_locked"
 
 
 def _envelope(request: Request, status: int, code: str, message: str, details: Any = None) -> JSONResponse:

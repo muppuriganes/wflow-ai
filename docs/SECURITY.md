@@ -41,6 +41,12 @@
 - **Webhook signing & replay protection:** Outgoing webhooks signed with HMAC-SHA256 (`X-WFlow-Signature: sha256=...`). External billing webhooks verify cryptographic signatures with timestamp window checks and deduplicate event IDs in `processed_provider_events`.
 - **Super Admin isolation:** Admin console strictly guarded by `require_superadmin` (`is_superadmin = true`). Database policies grant read access to org records while forbidding message body disclosure. Superadmin action audit events are strictly recorded with `audit_superadmin_insert`.
 
-## Planned (M7 & Later)
-- CSP for the SPA (with nginx in production), MFA (TOTP), account lockout after repeated failures,
-  WhatsApp session data encryption (RemoteAuth store), dependency and container scanning in CI, backup/restore runbook (M7).
+## Hardening & Production Readiness (M7)
+- **Account Lockout & Brute-Force Protection:** Distributed rate-limiting and failure tracking in Redis (`auth:fails:{email}`). After 5 consecutive invalid login attempts, account authentication is locked for 15 minutes (`auth:lockout:{email}`, HTTP 429 `AccountLockedError`). Both failure counters and lockout flags are cleared on successful login.
+- **Production Security Headers:** HSTS (`Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`) and Content Security Policy (`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none';`) emitted automatically in production mode.
+- **Ingress Isolation & Rate Limiting:** Production Nginx config applies separate IP-based burst rate-limiting zones (`api_limit` at 30r/s, `auth_limit` at 5r/s), strictly blocks external calls to `/api/v1/internal/` (HTTP 403), disables chunk buffering on `/api/v1/events/stream` for reliable Server-Sent Events, and limits upload payload sizes to 20MB.
+- **Production Startup Guards:** Strict environment validations prevent server initialization in production if default/insecure keys are detected (`JWT_SECRET`, `CREDENTIALS_ENCRYPTION_KEY`, insecure cookies, or simulator flags enabled).
+- **Disaster Recovery & Integrity:** Database backup automation with compressed format (`pg_dump -Fc`), SHA-256 verification hashes, and 7-day automated rotation. Restoration runbook with connection termination and RBAC re-syncing.
+
+## Planned (Later)
+- MFA (TOTP), WhatsApp session data encryption (RemoteAuth store), dependency and container scanning in CI.

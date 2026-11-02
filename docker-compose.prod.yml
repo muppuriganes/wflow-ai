@@ -1,0 +1,218 @@
+# WFlow AI — Production Docker Compose Configuration.
+# Usage:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+name: wflow-prod
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wflow}
+      POSTGRES_USER: ${POSTGRES_USER:-wflow_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  temporal:
+    image: temporalio/temporal:1.9.1
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/data/temporal.db", "--namespace", "wflow"]
+    volumes:
+      - temporal-data:/data
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli sync-rbac && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers"]
+    env_file: .env.production
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://wflow_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-wflow}
+      DATABASE_ADMIN_URL: postgresql+asyncpg://${POSTGRES_USER:-wflow_owner}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-wflow}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      GATEWAY_URL: http://messaging-gateway:8200
+      TEMPORAL_ADDRESS: temporal:7233
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/api/v1/health\").read()'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+
+  channel-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "app.workers.channel_events"]
+    env_file: .env.production
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://wflow_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-wflow}
+      DATABASE_ADMIN_URL: postgresql+asyncpg://${POSTGRES_USER:-wflow_owner}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-wflow}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      TEMPORAL_ADDRESS: temporal:7233
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  workflow-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "app.workers.workflow_worker"]
+    env_file: .env.production
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://wflow_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-wflow}
+      DATABASE_ADMIN_URL: postgresql+asyncpg://${POSTGRES_USER:-wflow_owner}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-wflow}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      TEMPORAL_ADDRESS: temporal:7233
+      GATEWAY_URL: http://messaging-gateway:8200
+      S3_ENDPOINT_URL: http://minio:9000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  messaging-gateway:
+    build:
+      context: ./services/messaging-gateway
+      dockerfile: Dockerfile
+    env_file: .env.production
+    environment:
+      GATEWAY_SKIP_DOTENV: "1"
+      GATEWAY_PORT: "8200"
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      BACKEND_INTERNAL_URL: http://backend:8000
+    volumes:
+      - gateway-sessions:/data/sessions
+    shm_size: "1gb"
+    depends_on:
+      redis:
+        condition: service_healthy
+    stop_grace_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  ingress-proxy:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    profiles: ["monitoring"]
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+
+volumes:
+  gateway-sessions:
+  temporal-data:
+  postgres-data:
+  redis-data:
+  minio-data:
+  prometheus-data:
+

@@ -154,4 +154,3 @@ class IntegrationCredential(UUIDPrimaryKey, Timestamps, Base):
     type: Mapped[str] = mapped_column(String(32), default="bearer")  # api_key, bearer, basic
     encrypted_secret: Mapped[str] = mapped_column(String(1000))
     masked_secret: Mapped[str] = mapped_column(String(64))  # e.g. "••••1234"
-

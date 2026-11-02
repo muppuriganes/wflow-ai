@@ -101,6 +101,16 @@ Third-party API keys and Bearer tokens are encrypted at rest with AES-256-GCM us
 with masked strings (`••••1234`) returned in API responses and logs. Outgoing webhooks carry HMAC-SHA256
 signatures (`X-WFlow-Signature: sha256=...`) and auto-pause after 10 consecutive failures.
 
+### ADR-013 — Observability, Hardening & Disaster Recovery
+Production telemetry exposes standard Prometheus metrics (/metrics) using prometheus_client.
+To avoid metrics cardinality explosion, request paths are sanitized to replace UUIDs with :id. Database
+connection pool health is tracked via active checkout and pool size gauges (wflow_db_pool_active_connections,
+wflow_db_pool_size). Distributed brute-force account lockout tracks consecutive failures in Redis, triggering
+a 15-minute freeze upon 5 bad attempts. Production deployments utilize Nginx reverse proxy with granular
+rate limits, unbuffered SSE streams (/api/v1/events/stream), and internal API route protection.
+Database disaster recovery utilizes custom-format PostgreSQL dumps (pg_dump -Fc), SHA-256 verification hashes,
+and 7-day retention rotation.
+
 ## Backend layout
 
 ```

@@ -1,6 +1,6 @@
 # Development status
 
-_Last updated: 2026-11-02 — end of M6._
+_Last updated: 2026-11-02 — end of M7._
 
 ## Working now (implemented, tested, verified in the browser)
 
@@ -61,13 +61,22 @@ _Last updated: 2026-11-02 — end of M6._
 | Super Admin Console | Cross-tenant administration (`/admin`) guarded by `is_superadmin`; real-time diagnostic health probes (Postgres, Redis, Temporal, Storage, Gateway); organizations search and filter by plan/status; plan override & trial day extension modal; organization suspension & restore controls with mandatory audit reasons; tenant inspection modal with usage breakdown and audit trails |
 | Billing Foundation | `BillingProvider` interface with `StripeTestBillingProvider` implementation running exclusively in test mode (never moving real money); test checkout sessions, portal sessions, and invoice listings; public webhook endpoint (`/api/v1/billing/webhook/stripe`) verifying HMAC signatures, replay protection via `processed_provider_events`, and automatic RLS context resolution via `org_id_by_stripe_customer_or_sub` |
 
+### M7 — Hardening & Production Readiness
+| Area | Details |
+|---|---|
+| Observability & Metrics | Prometheus metrics exposition at `GET /metrics`; counters and duration histograms for HTTP traffic with UUID path normalization (`:id`) to eliminate high cardinality; active and total database connection pool gauges (`wflow_db_pool_active_connections`, `wflow_db_pool_size`); counters for workflow runs, outgoing webhook deliveries, messaging events, failed logins, and account lockouts |
+| Brute-Force & Security Headers | Distributed Redis-backed brute-force account lockout: 5 consecutive failed logins trigger an automatic 15-minute lockout with HTTP 429 `AccountLockedError`; failed attempts and lockout states auto-cleared on successful login; production security headers enforced including HSTS (`Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`) and CSP (`Content-Security-Policy`); production configuration guards validating `JWT_SECRET`, encryption keys, and cookie security flags |
+| Production Ingress & Compose | Production Nginx reverse-proxy configuration (`infrastructure/nginx/nginx.conf`) with zone rate-limiting (`api_limit`, `auth_limit`), real-time SSE stream buffering bypass (`proxy_buffering off; X-Accel-Buffering: no`), internal endpoint isolation (`/api/v1/internal/` 403), and 20M upload ceilings; production Docker Compose (`docker-compose.prod.yml`) with container resource constraints, health probes, and isolated service networks; Prometheus scraper configuration (`infrastructure/monitoring/prometheus.yml`) |
+| Disaster Recovery & Backup | Cross-platform automated PostgreSQL backup scripts (`scripts/backup.sh`, `scripts/backup.ps1`) using custom-format compression (`pg_dump -Fc`), SHA-256 checksum generation, and rolling 7-day retention pruning; verified restore scripts (`scripts/restore.sh`, `scripts/restore.ps1`) terminating active connections, executing `pg_restore`, and re-running `sync-rbac`; complete runbook with RPO (<24h) and RTO (<30m) targets in `docs/DISASTER_RECOVERY.md` |
+| Load Testing & Benchmarking | High-concurrency async load testing benchmark (`backend/tests/load/load_test.py`) measuring RPS and p50/p95/p99 response latency across health probes, Prometheus metrics, and authenticated API routes |
+
 ## Test results (actually executed 2026-11-02)
-- Backend: `uv run pytest` → **99 passed** (M6: 18 new tests covering plans, metering concurrency, SSRF protection, credential encryption, outgoing webhook HMAC signatures, superadmin RLS, and billing lifecycle). M5 baseline: 81 passed; M4 baseline: 62 passed.
+- Backend: `uv run pytest` → **103 passed** (M7: 4 new tests in `test_hardening.py` covering Prometheus metrics endpoint, production security headers, Redis-backed account lockout, and production environment startup validation). M6 baseline: 99 passed; M5 baseline: 81 passed; M4 baseline: 62 passed.
 - Gateway: `npm test` → **25 passed**.
 - Frontend: `npm test` → **17 passed**; `npm run typecheck` 0 errors; `npm run build` passes cleanly with per-route code splitting for billing, integrations, admin, schedules, templates, and analytics.
 
 ## Not built yet
-M7 (Hardening & Production Readiness), AI track (deferred by product owner until application completion).
+AI track (deferred by product owner until application completion).
 
 ## Known limitations
 - Real WhatsApp linking needs a phone scan — please test with a spare number (see WHATSAPP_CONNECTOR.md risks).

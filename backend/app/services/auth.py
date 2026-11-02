@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.email import OutgoingEmail, send_email_safely
-from app.core.errors import AppError, AuthenticationError, ConflictError
+from app.core.errors import AccountLockedError, AppError, AuthenticationError, ConflictError
+from app.core.metrics import AUTH_FAILED_LOGINS_TOTAL, AUTH_LOCKOUTS_TOTAL
+from app.core.rate_limit import get_redis
 from app.core.request_context import get_request_meta
 from app.core.security import (
     DUMMY_PASSWORD_HASH,
@@ -133,23 +135,58 @@ async def register(db: AsyncSession, data: RegisterRequest) -> IssuedTokens:
     return tokens
 
 
+MAX_FAILED_LOGINS = 5
+LOCKOUT_DURATION_SECONDS = 900  # 15 minutes
+
+
 async def login(db: AsyncSession, email: str, password: str) -> IssuedTokens:
     email = _normalize_email(email)
+    redis = get_redis()
+    lockout_key = f"auth:lockout:{email}"
+    attempts_key = f"auth:fails:{email}"
+
+    if await redis.get(lockout_key):
+        AUTH_LOCKOUTS_TOTAL.inc()
+        raise AccountLockedError(
+            "Too many failed login attempts. Account temporarily locked for 15 minutes.",
+            code="account_locked",
+        )
+
     user = await db.scalar(select(User).where(User.email == email))
     # Always run one hash verification so response time does not reveal whether the email exists.
     valid = verify_password(password, user.password_hash if user else DUMMY_PASSWORD_HASH)
     if user is None or not valid or not user.is_active:
+        AUTH_FAILED_LOGINS_TOTAL.inc()
+        fails = await redis.incr(attempts_key)
+        if fails == 1:
+            await redis.expire(attempts_key, LOCKOUT_DURATION_SECONDS)
+        elif fails >= MAX_FAILED_LOGINS:
+            await redis.set(lockout_key, "1", ex=LOCKOUT_DURATION_SECONDS)
+            await redis.delete(attempts_key)
+            AUTH_LOCKOUTS_TOTAL.inc()
+
         if user is not None:
             await set_rls_context(db, user_id=user.id)
         record_audit(
             db,
             "auth.login_failed",
             actor_user_id=user.id if user else None,
-            details={"email": email, "reason": "inactive" if valid and user else "bad_credentials"},
+            details={
+                "email": email,
+                "reason": "inactive" if valid and user else "bad_credentials",
+                "failed_attempts": fails,
+            },
         )
         await db.commit()
+        if fails >= MAX_FAILED_LOGINS:
+            raise AccountLockedError(
+                "Too many failed login attempts. Account temporarily locked for 15 minutes.",
+                code="account_locked",
+            )
         raise AuthenticationError("Invalid email or password", code="invalid_credentials")
 
+    # Successful login: clear failure tracking
+    await redis.delete(attempts_key, lockout_key)
     await set_rls_context(db, user_id=user.id)
     user.last_login_at = datetime.now(UTC)
     tokens, _ = await _issue_tokens(db, user)
