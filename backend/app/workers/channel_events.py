@@ -11,13 +11,15 @@ import asyncio
 import json
 import os
 import socket
+import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import TypeAdapter, ValidationError
 from redis.asyncio import Redis
 from redis.exceptions import RedisError, ResponseError
-from sqlalchemy import case, select, update
+from sqlalchemy import case, literal_column, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -36,6 +38,7 @@ from app.schemas.channel_events import (
 )
 from app.services.messaging import preview
 from app.services.realtime import publish
+from app.workflow_engine.triggers import dispatch_inbound
 
 log = get_logger("worker.channel_events")
 
@@ -106,35 +109,51 @@ async def _handle_state(db: AsyncSession, conn: ChannelConnection, event: Connec
         conn.session_reference = None
 
 
-async def _handle_received(db: AsyncSession, conn: ChannelConnection, event: MessageReceivedEvent) -> None:
+@dataclass
+class Inbound:
+    """What a stored inbound message means for automations (dispatched after commit)."""
+
+    conversation_id: uuid.UUID
+    message_id: uuid.UUID
+    text: str | None
+    new_conversation: bool
+    new_contact: bool
+
+
+async def _handle_received(
+    db: AsyncSession, conn: ChannelConnection, event: MessageReceivedEvent
+) -> Inbound | None:
     p = event.payload
     now = datetime.now(UTC)
-    contact_id = await db.scalar(
-        insert(Contact)
-        .values(
-            organization_id=event.organization_id,
-            channel_type=conn.channel_type,
-            external_id=p.sender,
-            display_name=p.sender_name,
-            phone_number=p.sender_phone,
-            last_inbound_at=event.occurred_at,
-            created_at=now,
-            updated_at=now,
+    contact_row = (
+        await db.execute(
+            insert(Contact)
+            .values(
+                organization_id=event.organization_id,
+                channel_type=conn.channel_type,
+                external_id=p.sender,
+                display_name=p.sender_name,
+                phone_number=p.sender_phone,
+                last_inbound_at=event.occurred_at,
+                created_at=now,
+                updated_at=now,
+            )
+            .on_conflict_do_update(
+                constraint="uq_contacts_org_channel_external",
+                set_={
+                    "display_name": p.sender_name or Contact.display_name,
+                    "last_inbound_at": event.occurred_at,
+                    "deleted_at": None,
+                    "consent_status": case(
+                        (Contact.consent_status == "unknown", "engaged"), else_=Contact.consent_status
+                    ),
+                    "updated_at": now,
+                },
+            )
+            .returning(Contact.id, literal_column("xmax = 0"))
         )
-        .on_conflict_do_update(
-            constraint="uq_contacts_org_channel_external",
-            set_={
-                "display_name": p.sender_name or Contact.display_name,
-                "last_inbound_at": event.occurred_at,
-                "deleted_at": None,
-                "consent_status": case(
-                    (Contact.consent_status == "unknown", "engaged"), else_=Contact.consent_status
-                ),
-                "updated_at": now,
-            },
-        )
-        .returning(Contact.id)
-    )
+    ).one()
+    contact_id, contact_created = contact_row
     contact = await db.get(Contact, contact_id)
     assert contact is not None
 
@@ -146,20 +165,23 @@ async def _handle_received(db: AsyncSession, conn: ChannelConnection, event: Mes
         contact.opted_out_at = None
         contact.consent_status = "engaged"
 
-    conv_id = await db.scalar(
-        insert(Conversation)
-        .values(
-            organization_id=event.organization_id,
-            connection_id=conn.id,
-            contact_id=contact.id,
-            external_chat_id=p.chat_id,
-            is_group=p.is_group,
-            created_at=now,
-            updated_at=now,
+    conv_row = (
+        await db.execute(
+            insert(Conversation)
+            .values(
+                organization_id=event.organization_id,
+                connection_id=conn.id,
+                contact_id=contact.id,
+                external_chat_id=p.chat_id,
+                is_group=p.is_group,
+                created_at=now,
+                updated_at=now,
+            )
+            .on_conflict_do_update(constraint="uq_conversations_connection_chat", set_={"updated_at": now})
+            .returning(Conversation.id, literal_column("xmax = 0"))
         )
-        .on_conflict_do_update(constraint="uq_conversations_connection_chat", set_={"updated_at": now})
-        .returning(Conversation.id)
-    )
+    ).one()
+    conv_id, conv_created = conv_row
     msg_id = await db.scalar(
         insert(Message)
         .values(
@@ -182,7 +204,7 @@ async def _handle_received(db: AsyncSession, conn: ChannelConnection, event: Mes
         .returning(Message.id)
     )
     if msg_id is None:
-        return  # duplicate message: conversation counters stay untouched
+        return None  # duplicate message: counters untouched, automations not triggered again
     if p.attachment is not None:
         # Uploaded by the gateway just before this event; bind it only within this organization.
         await db.execute(
@@ -209,6 +231,9 @@ async def _handle_received(db: AsyncSession, conn: ChannelConnection, event: Mes
             ),
             resolved_at=None,
         )
+    )
+    return Inbound(
+        conv_id, msg_id, p.content, new_conversation=bool(conv_created), new_contact=bool(contact_created)
     )
 
 
@@ -259,9 +284,18 @@ async def process_event(
         if conn is None:
             log.warning("event_for_unknown_connection", event_id=str(event.event_id), type=event.event_type)
             return False
-        await HANDLERS[type(event)](db, conn, event)
+        outcome = await HANDLERS[type(event)](db, conn, event)
         await db.commit()
     await _notify(event)
+    if isinstance(outcome, Inbound):
+        try:
+            await dispatch_inbound(
+                event.organization_id, outcome.conversation_id, outcome.message_id, outcome.text,
+                new_conversation=outcome.new_conversation, new_contact=outcome.new_contact,
+            )  # fmt: skip
+        except Exception:
+            # The message is stored; a failing automation must never block message processing.
+            log.exception("workflow_dispatch_failed", event_id=str(event.event_id))
     return True
 
 

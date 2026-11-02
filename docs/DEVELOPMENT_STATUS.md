@@ -1,6 +1,6 @@
 # Development status
 
-_Last updated: 2026-11-02 — end of M3._
+_Last updated: 2026-11-02 — end of M4._
 
 ## Working now (implemented, tested, verified in the browser)
 
@@ -36,16 +36,28 @@ _Last updated: 2026-11-02 — end of M3._
 | Leads | Fixed 7-stage pipeline board with drag and drop, totals per stage, owner, value/currency, score, expected close, lost reason; stage changes recorded on the timeline |
 | Tasks | Follow-ups with timezone-aware due dates (viewer-local "today"), assignee, links to contact/lead/conversation; overdue/today/upcoming/done filters |
 
+### M4 — Workflow engine
+| Area | Details |
+|---|---|
+| Builder | React Flow canvas: palette (click or drag), 24 step types with generated settings forms, branches with labelled outputs, autosave, undo/redo, inline validation on cards, minimap/zoom |
+| Lifecycle | Validate, publish immutable versions, restore, duplicate, activate/pause/archive, unpublished-changes indicator |
+| Test runs | Dry runs of the draft on a real conversation: actions describe what they would do, waits skipped, results overlaid on the canvas |
+| Execution | Temporal workflows: durable delays, wait-for-reply (replied/timeout), approvals (approve/reject/expire), human handover; idempotent steps; trigger de-duplication; retries with backoff |
+| Triggers | Keyword/any inbound message, new conversation, new contact, manual (“Run now”), webhook with idempotency key |
+| Execution Logs | Runs list with filters, run detail with per-step input/output, retry, cancel; Approvals queue |
+
 ## Test results (actually executed 2026-11-02)
-- Backend: `uv run pytest` → **48 passed** (incl. 5 inbox and 4 CRM tests: views/counts/reopen, assignment permissions, read-only viewer, attachments in/out, live notifications, contact dedupe/merge, custom fields, pipeline/tasks, CRM isolation).
+- Backend: `uv run pytest` → **62 passed** (M4 adds 14 workflow tests, 9 of them end to end on Temporal). M3 run: **48 passed** (incl. 5 inbox and 4 CRM tests: views/counts/reopen, assignment permissions, read-only viewer, attachments in/out, live notifications, contact dedupe/merge, custom fields, pipeline/tasks, CRM isolation).
 - Gateway: `npm test` → **25 passed** (adds inbound/outbound media).
 - Frontend: `npm test` → **17 passed** (adds SSE stream parser); `npm run build` passes with per-route code splitting.
 - Manual: real services (API + gateway + worker + Redis + Postgres) driven from the browser — simulator end to end;
   WhatsApp Web start → live QR → cancel (session wiped); gateway crash → restore; role restrictions.
+  M4: builder → keyword trigger + send + delay + lead → dry test run on a real conversation → publish → simulator
+  “price” message → live run sends the reply and waits on the delay → cancel from Execution Logs.
   M3: simulator customer photo → inbox (live) → assign → reply → internal note → create lead → move stage → contact timeline → task; phone layout.
 
 ## Not built yet
-Workflows (M4), schedules/templates/analytics (M5), integrations/billing/Super Admin console (M6), AI track.
+Schedules/templates/analytics (M5), integrations/billing/Super Admin console (M6), AI track.
 
 ## Known limitations
 - Real WhatsApp linking needs a phone scan — please test with a spare number (see WHATSAPP_CONNECTOR.md risks).
@@ -55,4 +67,7 @@ Workflows (M4), schedules/templates/analytics (M5), integrations/billing/Super A
 - The backend uses the MinIO root credentials locally; production should use a bucket-scoped access key (`S3_ACCESS_KEY`/`S3_SECRET_KEY`).
 - WhatsApp session data is protected by folder isolation, not encryption at rest (see WHATSAPP_CONNECTOR.md).
 - `npm audit` reports a high-severity issue in `basic-ftp`, pulled in by puppeteer's proxy support; the gateway never uses FTP.
+- Workflows are acyclic (no loops) and branches don't re-join in parallel; the builder is not usable at phone
+  width (the list and Execution Logs are). Approvals can be decided in Execution Logs only (no notifications yet).
+- `mypy app` still reports pre-existing typing issues (redis/boto3 stubs, a few older call sites); ruff is clean.
 - Emails are sent inside the request (no queued retries yet). Org deletion is soft; no purge job yet.

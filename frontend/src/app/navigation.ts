@@ -33,12 +33,7 @@ export const workspaceNav: NavItem[] = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
   { to: "/inbox", label: "Inbox", icon: Inbox },
   { to: "/channels", label: "Channels", icon: MessageCircle },
-  {
-    to: "/workflows",
-    label: "Workflows",
-    icon: Workflow,
-    milestone: { id: "M4", summary: "Visual drag-and-drop builder with versioning, publishing and durable execution." },
-  },
+  { to: "/workflows", label: "Workflows", icon: Workflow },
   {
     to: "/agents",
     label: "AI Agents",
@@ -76,12 +71,7 @@ export const workspaceNav: NavItem[] = [
     icon: BarChart3,
     milestone: { id: "M5", summary: "Conversation, lead and automation analytics from real data, with export." },
   },
-  {
-    to: "/executions",
-    label: "Execution Logs",
-    icon: Activity,
-    milestone: { id: "M4", summary: "Inspect every workflow run, node inputs and outputs, retry and cancel." },
-  },
+  { to: "/executions", label: "Execution Logs", icon: Activity },
   {
     to: "/templates",
     label: "Templates",

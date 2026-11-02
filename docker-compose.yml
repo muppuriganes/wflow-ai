@@ -1,7 +1,7 @@
 # WFlow AI — local stack.
 #   Infrastructure only (run backend/frontend on the host):  docker compose up -d
 #   Everything in containers:                                 docker compose --profile app up -d --build
-# Temporal is added in milestone M4 (workflow engine), monitoring in M7.
+# Monitoring is added in M7.
 # The internal API paths (/api/v1/internal/*) must not be exposed by a public proxy.
 
 name: wflow
@@ -73,6 +73,19 @@ services:
       mc anonymous set none local/$$S3_BUCKET"
     restart: "no"
 
+  # Durable workflow execution (M4). Development server with SQLite persistence; production
+  # should use a Temporal cluster or Temporal Cloud (see docs/WORKFLOW_ENGINE.md).
+  temporal:
+    image: temporalio/temporal:1.9.1
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/data/temporal.db", "--namespace", "wflow"]
+    user: "0:0"
+    ports:
+      - "127.0.0.1:${TEMPORAL_HOST_PORT:-57233}:7233"
+      - "127.0.0.1:${TEMPORAL_UI_HOST_PORT:-58233}:8233"
+    volumes:
+      - temporal-data:/data
+    restart: unless-stopped
+
   mailpit:
     image: axllent/mailpit:v1.24
     ports:
@@ -92,6 +105,7 @@ services:
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
       GATEWAY_URL: http://messaging-gateway:8200
+      TEMPORAL_ADDRESS: temporal:7233
     ports:
       - "127.0.0.1:${API_HOST_PORT:-8100}:8000"
     depends_on:
@@ -110,9 +124,27 @@ services:
       DATABASE_URL: postgresql+asyncpg://wflow_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-wflow}
       DATABASE_ADMIN_URL: postgresql+asyncpg://${POSTGRES_USER:-wflow_owner}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-wflow}
       REDIS_URL: redis://redis:6379/0
+      TEMPORAL_ADDRESS: temporal:7233
     depends_on:
       backend:
         condition: service_started
+    restart: unless-stopped
+
+  workflow-worker:
+    profiles: ["app"]
+    build: ./backend
+    command: ["python", "-m", "app.workers.workflow_worker"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://wflow_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-wflow}
+      DATABASE_ADMIN_URL: postgresql+asyncpg://${POSTGRES_USER:-wflow_owner}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-wflow}
+      REDIS_URL: redis://redis:6379/0
+      TEMPORAL_ADDRESS: temporal:7233
+      GATEWAY_URL: http://messaging-gateway:8200
+      S3_ENDPOINT_URL: http://minio:9000
+    depends_on:
+      - temporal
+      - backend
     restart: unless-stopped
 
   messaging-gateway:
@@ -149,6 +181,7 @@ services:
 
 volumes:
   gateway-sessions:
+  temporal-data:
   postgres-data:
   redis-data:
   minio-data:

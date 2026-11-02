@@ -124,3 +124,32 @@ Base URL `/api/v1`. Interactive OpenAPI docs: `/api/docs` (schema at `/api/opena
 ### Internal (gateway → backend)
 | POST | `/internal/channels/media` (multipart `organization_id`, `connection_id`, `file`) | Stores inbound media, returns `attachment_id` |
 |---|---|---|
+
+## Endpoints (M4) — all under `/organizations/{id}` unless noted
+
+### Workflows
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/workflow-node-types` | Step catalogue: category, fields, outputs (drives the builder) |
+| GET / POST | `/workflows?include_archived=` | `workflows.read` / `workflows.manage`; list includes 7-day run stats |
+| GET / PATCH | `/workflows/{id}` | Draft definition (`{nodes, edges}`), name, description; `webhook_url` only for `workflows.publish` |
+| POST | `/workflows/{id}/validate` | `{ok, errors, warnings}` (issues carry `node_id`) |
+| POST | `/workflows/{id}/publish` | `workflows.publish`; returns `{workflow, validation}` — nothing is published when invalid |
+| POST | `/workflows/{id}/status` `{status: active\|paused\|archived}` | `workflows.publish` |
+| POST | `/workflows/{id}/duplicate`, `/workflows/{id}/webhook/regenerate` | |
+| GET | `/workflows/{id}/versions`; POST `/versions/{vid}/restore` | Restore copies into the draft |
+| POST | `/workflows/{id}/test` `{conversation_id?, sample_message?, webhook?}` | Dry run of the draft; returns `{run, validation}` |
+| POST | `/workflows/{id}/execute` `{conversation_id?}` | Manual trigger, published + active only; 409 `human_takeover` |
+
+### Runs and approvals
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/workflow-runs?workflow_id=&status=&include_tests=&page=` | `executions.read` |
+| GET | `/workflow-runs/{id}` | Steps with input/output, trigger payload (secrets masked) |
+| POST | `/workflow-runs/{id}/retry`, `/workflow-runs/{id}/cancel` | `executions.manage`; retry only for failed/cancelled/timed-out live runs |
+| GET | `/approvals?status=` | `executions.read` |
+| POST | `/approvals/{id}/decision` `{decision: approved\|rejected, note?}` | `approvals.decide`; 409 if already decided |
+
+### Public webhook trigger (no auth; the token is the credential)
+| POST | `/api/v1/hooks/{token}` | JSON object ≤ 64 KB; optional `Idempotency-Key`; 60/min per token; 202 `{status: accepted\|duplicate, run_id}` |
+|---|---|---|

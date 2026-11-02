@@ -152,7 +152,9 @@ function Shell() {
   const { current, isLoading, error, refetch, organizations } = useOrganization();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const fullBleed = useMatch("/inbox/*") !== null;
+  const inInbox = useMatch("/inbox/*") !== null;
+  const inBuilder = useMatch("/workflows/:workflowId") !== null;
+  const fullBleed = inInbox || inBuilder;
 
   if (isLoading) {
     return (
@@ -210,7 +212,7 @@ function Shell() {
         </header>
         <VerifyEmailBanner />
         {fullBleed ? (
-          // Workspace screens like the inbox manage their own panes and scrolling.
+          // Workspace screens like the inbox and the workflow builder manage their own panes and scrolling.
           <main className="min-h-0 flex-1 overflow-hidden">
             <Outlet />
           </main>

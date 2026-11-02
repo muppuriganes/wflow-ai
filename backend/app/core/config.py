@@ -30,6 +30,8 @@ class Settings(BaseSettings):
 
     cookie_secure: bool = False
     frontend_url: str = "http://localhost:5180"
+    # Public base URL of this API (used for webhook links shown to users).
+    public_api_url: str = "http://localhost:8100"
     cors_origins: str = "http://localhost:5180"
 
     smtp_host: str = "127.0.0.1"
@@ -57,6 +59,14 @@ class Settings(BaseSettings):
     simulator_enabled: bool = True
     channel_event_stream: str = "wflow:channel-events"
 
+    # --- Workflow engine (Temporal) ---
+    temporal_address: str = "127.0.0.1:57233"
+    temporal_namespace: str = "wflow"
+    temporal_task_queue: str = "wflow-workflows"
+    # Multiplier for delays, reply/approval timeouts and retry back-off. Tests use a tiny value so
+    # an hour-long delay takes about a second; production refuses anything but 1.
+    workflow_time_scale: float = 1.0
+
     # --- Object storage (MinIO locally, any S3-compatible service in production) ---
     s3_endpoint_url: str = "http://127.0.0.1:59000"
     # Host browsers use for signed download links (defaults to s3_endpoint_url).
@@ -83,6 +93,8 @@ class Settings(BaseSettings):
                 raise ValueError("INTERNAL_API_TOKEN must be a random value of 32+ characters in production")
             if self.simulator_enabled:
                 raise ValueError("SIMULATOR_ENABLED must be false in production")
+            if self.workflow_time_scale != 1.0:
+                raise ValueError("WORKFLOW_TIME_SCALE must be 1 in production")
         return self
 
 

@@ -75,8 +75,15 @@ from a signed link; inbound media is POSTed to an internal backend endpoint befo
 Per product decision, AI (model router, RAG, agents) is deferred until the core platform is complete.
 pgvector is installed now; AI menu items show an honest "not available yet" state.
 
-### ADR-006 — Temporal arrives with the workflow engine (M4)
-Not started in M1 to avoid running infrastructure before it has a job.
+### ADR-006 — Temporal for workflow execution (M4)
+Runs are Temporal workflows: delays, waits for a reply and approvals are durable timers/signals that
+survive restarts and can last weeks. The workflow only interprets a compiled plan; all I/O happens in
+idempotent activities. See [WORKFLOW_ENGINE.md](WORKFLOW_ENGINE.md).
+
+### ADR-010 — Workflow definitions as versioned JSONB
+The builder's React Flow graph is stored as JSONB (`workflows.draft_definition`). Publishing writes an
+immutable `workflow_versions` row with the definition and its compiled plan; runs reference the version
+they started with. Steps are typed, registry-defined operations — there is no user code execution.
 
 ## Backend layout
 
@@ -89,6 +96,8 @@ backend/app/
   schemas/       Pydantic request/response models
   core/          config, security, errors, logging, rbac, email, rate limiting
   database/      engine, sessions, RLS context
+  workflow_engine/ node registry, graph compiler, Temporal workflow + activities, triggers
+  workers/       channel event consumer, Temporal workflow worker
   cli.py         operational commands
 migrations/      Alembic (RLS policies live in the migrations)
 ```

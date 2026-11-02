@@ -12,8 +12,8 @@ builds passing and `DEVELOPMENT_STATUS.md` updated.
 | M1 | Foundation | Auth (register, login, refresh rotation, logout, verify email, reset password), organizations, invitations, RBAC (6 roles), RLS tenant isolation, audit log, design system, app shell, auth + admin screens | ✅ Done |
 | M2 | Channels & messaging | Node messaging gateway with whatsapp-web.js adapter (QR, states, tenant-isolated sessions, reconnect, per-org limits, restore), simulator channel, normalized events via Redis Streams with idempotency, consent/opt-out, sending limits, connection screens | ✅ Done |
 | M3 | Inbox & CRM | Real-time inbox (SSE), assignment, notes, tags, status/priority, human takeover, attachments (MinIO), contacts + custom fields, lead pipeline, follow-up tasks, customer timeline | ✅ Done |
-| M4 (next) | Workflow engine | React Flow editor, validation/compilation, versions & publishing, Temporal execution, rule-based nodes (triggers, conditions, actions, data, logic, human), execution monitoring | Planned |
-| M5 | Schedules, templates, analytics | Timezone-aware schedules, template library, dashboard and analytics from real data, CSV export | Planned |
+| M4 | Workflow engine | React Flow editor, validation/compilation, versions & publishing, Temporal execution, rule-based nodes (triggers, conditions, actions, data, logic, human), execution monitoring | ✅ Done |
+| M5 (next) | Schedules, templates, analytics | Timezone-aware schedules, template library, dashboard and analytics from real data, CSV export | Planned |
 | M6 | Commercial platform | Plans & usage limits, billing foundation, integrations framework (webhooks/REST), Super Admin console | Planned |
 | M7 | Hardening | OpenTelemetry/Prometheus/Grafana, load & security testing, backups, production config, deployment docs | Planned |
 | AI | AI track | Ollama + model router, RAG on pgvector, agents & tool registry — plugs in as new node types and screens | After M7 |

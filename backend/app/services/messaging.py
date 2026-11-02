@@ -91,17 +91,34 @@ async def send(
     - opted-out contacts are never messaged;
     - per-connection send rate limit."""
     ctx.require("inbox.reply")
+    conv = await get_conversation_row(db, ctx, conversation_id)
+    return await deliver(db, ctx.org_id, conv, client_message_id, text, file, sent_by_user_id=ctx.user.id)
+
+
+async def deliver(
+    db: AsyncSession,
+    org_id: uuid.UUID,
+    conv: Conversation,
+    client_message_id: str,
+    text: str | None,
+    file: OutgoingFile | None = None,
+    *,
+    sent_by_user_id: uuid.UUID | None,
+    automated: bool = False,
+) -> MessageOut:
+    """The single send path for people and automations. Callers have already checked who may send."""
     if not text and file is None:
         raise AppError("Write a message or attach a file", code="empty_message")
     existing = await db.scalar(
         select(Message).where(
-            Message.organization_id == ctx.org_id, Message.client_message_id == client_message_id
+            Message.organization_id == org_id, Message.client_message_id == client_message_id
         )
     )
     if existing is not None:
         return (await serialize_messages(db, [existing]))[0]
 
-    conv = await get_conversation_row(db, ctx, conversation_id)
+    if automated and conv.automation_paused:
+        raise ConflictError("A team member has taken over this conversation", code="human_takeover")
     contact = await db.get(Contact, conv.contact_id)
     conn = await db.get(ChannelConnection, conv.connection_id)
     if contact is None or conn is None or conn.deleted_at is not None:
@@ -124,13 +141,13 @@ async def send(
 
     storage_key = None
     if file is not None and detected is not None:
-        storage_key = attachment_key(ctx.org_id, safe_name)
+        storage_key = attachment_key(org_id, safe_name)
         await get_storage().put(storage_key, file.data, detected.content_type)
 
     now = datetime.now(UTC)
     msg = Message(
         id=uuid.uuid4(),
-        organization_id=ctx.org_id,
+        organization_id=org_id,
         connection_id=conn.id,
         conversation_id=conv.id,
         direction="outbound",
@@ -138,14 +155,14 @@ async def send(
         message_type=detected.message_type if detected else "text",
         content=text,
         status="queued",
-        sent_by_user_id=ctx.user.id,
+        sent_by_user_id=sent_by_user_id,
         created_at=now,
     )
     db.add(msg)
     if storage_key and detected:
         db.add(
             MessageAttachment(
-                organization_id=ctx.org_id, message_id=msg.id, storage_key=storage_key, file_name=safe_name,
+                organization_id=org_id, message_id=msg.id, storage_key=storage_key, file_name=safe_name,
                 content_type=detected.content_type, size_bytes=len(file.data) if file else 0, created_at=now,
             )
         )  # fmt: skip
@@ -158,7 +175,7 @@ async def send(
             await get_storage().delete(storage_key)
         winner = await db.scalar(
             select(Message).where(
-                Message.organization_id == ctx.org_id, Message.client_message_id == client_message_id
+                Message.organization_id == org_id, Message.client_message_id == client_message_id
             )
         )
         if winner is None:
@@ -169,14 +186,14 @@ async def send(
     try:
         if storage_key and detected:
             result = await gateway.send_media(
-                conn.id, ctx.org_id, conv.external_chat_id,
+                conn.id, org_id, conv.external_chat_id,
                 media_url=get_storage().url(storage_key, file_name=safe_name, internal=True, expires=600),
                 file_name=safe_name, content_type=detected.content_type, caption=text,
                 client_message_id=client_message_id,
             )  # fmt: skip
         else:
             result = await gateway.send_text(
-                conn.id, ctx.org_id, conv.external_chat_id, text or "", client_message_id
+                conn.id, org_id, conv.external_chat_id, text or "", client_message_id
             )
     except AppError as exc:
         msg.status = "failed"
@@ -193,7 +210,7 @@ async def send(
         conv.status = "ASSIGNED" if conv.assigned_user_id else "OPEN"
         conv.resolved_at = None
     await db.commit()
-    await publish(ctx.org_id, "message.created", conversation_id=conv.id)
+    await publish(org_id, "message.created", conversation_id=conv.id)
     return (await serialize_messages(db, [msg]))[0]
 
 

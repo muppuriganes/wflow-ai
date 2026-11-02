@@ -5,7 +5,8 @@
 Multi-tenant business automation SaaS: WhatsApp connectivity, unified inbox, CRM, visual workflows —
 with AI agents planned as a later track.
 
-> **Status:** M0–M3 are complete: foundation, WhatsApp channels & messaging, team inbox and CRM. See
+> **Status:** M0–M4 are complete: foundation, WhatsApp channels & messaging, team inbox and CRM, and the
+> visual workflow engine. See
 > [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md) for exactly what works today.
 
 ## Stack
@@ -17,7 +18,7 @@ with AI agents planned as a later track.
 | Data | PostgreSQL 17 + pgvector, Row Level Security for tenant isolation |
 | Infra | Redis (rate limiting, later queues), MinIO (files), Mailpit (dev email), Docker Compose |
 | Messaging | Node.js + TypeScript gateway with whatsapp-web.js; Redis Streams event bus; simulator channel |
-| Later | Temporal (workflow engine, M4) |
+| Workflows | React Flow builder; Temporal for durable execution |
 
 ## Quick start (development)
 
@@ -25,7 +26,7 @@ Prerequisites: Docker Desktop, Python 3.12 + [uv](https://docs.astral.sh/uv/), N
 
 ```bash
 cp .env.example .env          # then replace every change-me value
-docker compose up -d          # postgres, redis, minio, mailpit
+docker compose up -d          # postgres, redis, minio, mailpit, temporal
 ```
 
 ```bash
@@ -39,6 +40,11 @@ uv run uvicorn app.main:app --port 8100 --reload
 ```bash
 cd backend
 uv run python -m app.workers.channel_events   # applies gateway events to the database
+```
+
+```bash
+cd backend
+uv run python -m app.workers.workflow_worker  # runs workflows (Temporal)
 ```
 
 ```bash
@@ -63,6 +69,7 @@ message → delivery-receipt path as WhatsApp.
 | Health / readiness | http://localhost:8100/api/v1/health, `/health/ready` |
 | Mailpit (all dev email) | http://localhost:58025 |
 | MinIO console | http://localhost:59001 |
+| Temporal UI | http://localhost:58233 |
 
 Ports are intentionally non-default so WFlow runs beside other local stacks.
 

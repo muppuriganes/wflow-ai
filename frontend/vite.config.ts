@@ -18,6 +18,7 @@ export default defineConfig({
           ui: ["radix-ui", "sonner", "lucide-react"],
           forms: ["zod", "react-hook-form", "@hookform/resolvers"],
           query: ["@tanstack/react-query"],
+          flow: ["@xyflow/react"],
         },
       },
     },

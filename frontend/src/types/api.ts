@@ -301,3 +301,116 @@ export type ContactDetail = CrmContact & {
   leads: Lead[];
   tasks: Task[];
 };
+
+// --- Workflows (M4) ---------------------------------------------------------------------
+
+export type WorkflowStatus = "draft" | "active" | "paused" | "archived";
+export type NodeCategory = "trigger" | "condition" | "action" | "data" | "logic" | "human";
+export type NodeFieldType = "text" | "textarea" | "number" | "select" | "multiselect" | "keywords" | "tag" | "user" | "connection" | "time";
+
+export type NodeField = {
+  key: string;
+  label: string;
+  type: NodeFieldType;
+  required: boolean;
+  help: string;
+  options: { value: string; label: string }[];
+  default: unknown;
+  min: number | null;
+  max: number | null;
+  max_length: number;
+  templated: boolean;
+};
+
+export type NodeType = {
+  type: string;
+  category: NodeCategory;
+  label: string;
+  description: string;
+  outputs: { handle: string; label: string }[];
+  needs_conversation: boolean;
+  needs_contact: boolean;
+  side_effects: boolean;
+  fields: NodeField[];
+};
+
+export type FlowNode = { id: string; type: "wflow"; position: { x: number; y: number }; data: { nodeType: string; config: Record<string, unknown> } };
+export type FlowEdge = { id: string; source: string; target: string; sourceHandle: string };
+export type WorkflowDefinition = { nodes: FlowNode[]; edges: FlowEdge[]; viewport?: { x: number; y: number; zoom: number } | null };
+
+export type WorkflowSummary = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: WorkflowStatus;
+  trigger_type: string | null;
+  published_version: number | null;
+  has_unpublished_changes: boolean;
+  stats: { total_7d: number; failed_7d: number; last_status: RunStatus | null; last_run_at: string | null };
+  updated_at: string;
+};
+
+export type WorkflowDetail = WorkflowSummary & { definition: WorkflowDefinition; webhook_url: string | null };
+
+export type Issue = { message: string; node_id: string | null };
+export type Validation = { ok: boolean; errors: Issue[]; warnings: Issue[] };
+
+export type WorkflowVersion = { id: string; version: number; published_by: string | null; created_at: string; is_current: boolean };
+
+export type RunStatus = "QUEUED" | "RUNNING" | "WAITING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TIMED_OUT";
+
+export type RunSummary = {
+  id: string;
+  workflow_id: string;
+  workflow_name: string;
+  version: number | null;
+  status: RunStatus;
+  is_test: boolean;
+  trigger_type: string;
+  conversation_id: string | null;
+  contact_name: string | null;
+  waiting_for: string | null;
+  error: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  duration_ms: number | null;
+  node_count: number;
+  failed_nodes: number;
+  retries: number;
+};
+
+export type NodeRun = {
+  node_id: string;
+  node_type: string;
+  status: "running" | "waiting" | "completed" | "skipped" | "failed" | "cancelled";
+  attempt: number;
+  outcome: string | null;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  error: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
+export type RunDetail = RunSummary & {
+  trigger_payload: Record<string, unknown>;
+  nodes: NodeRun[];
+  definition: WorkflowDefinition | null;
+  retry_of_run_id: string | null;
+};
+
+export type Approval = {
+  id: string;
+  run_id: string;
+  workflow_name: string;
+  title: string;
+  details: string | null;
+  status: "pending" | "approved" | "rejected" | "expired" | "cancelled";
+  assignee: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  expires_at: string | null;
+  created_at: string;
+};

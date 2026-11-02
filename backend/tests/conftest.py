@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import uuid
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
@@ -20,6 +21,13 @@ os.environ["DATABASE_ADMIN_URL"] = os.environ.get("TEST_DATABASE_ADMIN_URL") or 
     _env["TEST_DATABASE_ADMIN_URL"]
 )
 os.environ["AUTH_RATE_LIMIT"] = "100000"
+# Workflow engine: real Temporal dev server (docker compose), a private task queue per test session,
+# and compressed time so hour-long delays and timeouts take about two seconds.
+os.environ["TEMPORAL_ADDRESS"] = os.environ.get("TEMPORAL_ADDRESS") or str(
+    _env.get("TEMPORAL_ADDRESS") or "127.0.0.1:57233"
+)
+os.environ["TEMPORAL_TASK_QUEUE"] = f"wflow-tests-{uuid.uuid4().hex[:8]}"
+os.environ["WORKFLOW_TIME_SCALE"] = "0.0005"
 # Separate Redis database so test traffic never consumes the dev server's rate-limit quota.
 _redis_base = str(_env.get("REDIS_URL") or "redis://127.0.0.1:56379/0").rsplit("/", 1)[0]
 os.environ["REDIS_URL"] = os.environ.get("TEST_REDIS_URL") or f"{_redis_base}/15"
@@ -62,8 +70,10 @@ async def clean_db(admin_engine: AsyncEngine) -> AsyncIterator[None]:
     yield
     async with admin_engine.begin() as conn:
         await conn.execute(text("DELETE FROM audit_logs"))
+        await conn.execute(text("UPDATE workflows SET published_version_id = NULL"))
         await conn.execute(text("DELETE FROM channel_events"))
         await conn.execute(text("DELETE FROM customer_activities"))
+        await conn.execute(text("DELETE FROM approvals"))
         await conn.execute(text("DELETE FROM organizations"))
         await conn.execute(text("DELETE FROM users"))
 
@@ -140,3 +150,25 @@ def storage() -> Iterator[MemoryStorage]:
     set_storage(fake)
     yield fake
     set_storage(None)
+
+
+@pytest.fixture(scope="session")
+async def temporal_worker() -> AsyncIterator[None]:
+    """A Temporal worker for this test session (only tests that request it start one)."""
+    import asyncio
+
+    from temporalio.client import Client
+
+    from app.core.config import get_settings
+    from app.workers.workflow_worker import build_worker
+    from app.workflow_engine import client as engine
+
+    settings = get_settings()
+    client = await Client.connect(settings.temporal_address, namespace=settings.temporal_namespace)
+    engine.set_client(client)
+    worker = build_worker(client, settings.temporal_task_queue)
+    task = asyncio.create_task(worker.run())
+    yield
+    await worker.shutdown()
+    await asyncio.gather(task, return_exceptions=True)
+    engine.set_client(None)

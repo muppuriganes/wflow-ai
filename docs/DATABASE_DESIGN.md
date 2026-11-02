@@ -88,6 +88,17 @@ of in-progress/active connections so the gateway can resume them after a restart
 
 All M3 tables use the standard tenant policy.
 
+## Workflows (M4)
+| Table | Notes |
+|---|---|
+| `workflows` | name, status (draft/active/paused/archived), `draft_definition` JSONB (React Flow graph), `trigger_type`, `published_version_id`, unique `webhook_token` |
+| `workflow_versions` | Immutable (UPDATE/DELETE revoked from the app role): `version`, `definition`, `compiled` plan, publisher; unique `(workflow_id, version)` |
+| `workflow_runs` | status QUEUED/RUNNING/WAITING/COMPLETED/FAILED/CANCELLED/TIMED_OUT, `is_test`, trigger type + payload, conversation/contact, `waiting_for`, error, `retry_of_run_id`; partial unique `(workflow_id, trigger_event_key)` de-duplicates triggers |
+| `node_runs` | One row per step per run (unique `(run_id, node_id)`): status, attempt, input/output, outcome, error |
+| `approvals` | Pending/approved/rejected/expired/cancelled decisions with assignee, decider, note, expiry |
+
+All use the standard tenant policy. `workflow_by_webhook_token(text)` (SECURITY DEFINER) resolves a public
+webhook token to its active workflow and organization before the tenant context exists.
+
 ## Planned (later milestones)
-Automation (`workflows`, `workflow_versions`, `workflow_runs`, `node_runs`, …),
-CRM (`leads`, `follow_up_tasks`, …), integrations, billing — each with `organization_id` + RLS.
+Schedules and templates (M5), integrations, billing (M6) — each with `organization_id` + RLS.

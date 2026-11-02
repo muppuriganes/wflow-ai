@@ -10,6 +10,9 @@ docker compose up -d
 cd backend && uv run pytest
 ```
 
+Workflow engine tests need the compose `temporal` service. They start an in-process worker on a unique task
+queue and set `WORKFLOW_TIME_SCALE=0.0005`, so a one-hour delay takes about two seconds.
+
 | File | Covers |
 |---|---|
 | `test_auth.py` | register, validation envelope, login, refresh rotation + reuse detection, logout, verify email, reset, change password, activity |
@@ -18,6 +21,7 @@ cd backend && uv run pytest
 | `test_channels.py` | connection lifecycle + QR, idempotent events, limits, inbound dedupe, idempotent replies, forward-only acks, opt-out/customer-initiated rules, rate limit, spoofed cross-tenant events, secure remove, restore endpoint, simulator guard |
 | `test_inbox.py` | views/counts, assignment rules, reopen keeps owner, notes, takeover, viewer read-only, attachments out (sniffing, storage, gateway) and in (internal upload, linking, cross-org refusal), live notifications carry ids only |
 | `test_crm.py` | phone normalisation, duplicate detection, inbound merge into an existing contact, consent timeline, tags, custom-field validation, pipeline + totals, owner membership, timezone-aware task filters, CRM permissions and isolation |
+| `test_workflows.py` | graph validation, config validation, expressions; publish/versions/restore/duplicate/permissions/isolation; end to end on Temporal: keyword trigger → send/tag/lead/delay/note, redelivery de-dupe, wait-for-reply (replied + timeout), approvals (permissions, double decision), human takeover, dry test runs, failure → retry, cancel, webhooks (idempotency key, masking, paused) |
 | `test_platform.py` | health/readiness, request id + security headers, rate limiter, error envelope |
 
 ## Messaging gateway (`services/messaging-gateway/src/**/*.test.ts`)
