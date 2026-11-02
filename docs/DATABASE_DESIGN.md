@@ -110,7 +110,8 @@ ext_run_at, 	otal_runs |
 
 ### RLS Policies (M5)
 - schedules: standard tenant policy USING (organization_id = app_current_org_id()) WITH CHECK (organization_id = app_current_org_id()).
-- workflow_templates: USING (organization_id IS NULL OR organization_id = app_current_org_id()) WITH CHECK (organization_id = app_current_org_id()). Read-only for system templates; tenant users can create their own custom templates within their organization.
+- workflow_templates: SELECT where `is_system OR organization_id = app_current_org_id()`; INSERT/UPDATE/DELETE only on the organization's own non-system rows, so shared system templates are read-only even to raw SQL.
+- `schedule_org_by_id(uuid)` (SECURITY DEFINER) maps a firing schedule to its organization before the tenant context exists.
 
 ### Analytics Indexes (M5)
 - messages (organization_id, created_at, direction)

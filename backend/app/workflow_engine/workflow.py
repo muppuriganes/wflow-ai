@@ -192,11 +192,15 @@ class GraphWorkflow:
 
 @workflow.defn(name="ScheduleTriggerWorkflow")
 class ScheduleTriggerWorkflow:
+    """Started by a Temporal schedule on each fire; starts the scheduled workflow's runs."""
+
     @workflow.run
     async def run(self, inp: dict[str, Any]) -> str:
+        # Temporal suffixes schedule-started workflow ids with the scheduled time: a stable key for
+        # this fire, so activity retries never start the runs twice.
         res = await workflow.execute_activity(
             acts.dispatch_schedule_activity,
-            inp,
+            {**inp, "fire_key": workflow.info().workflow_id},
             start_to_close_timeout=timedelta(minutes=5),
             retry_policy=ACTIVITY_RETRY,
         )

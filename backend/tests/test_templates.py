@@ -134,3 +134,24 @@ async def test_instantiate_template(client: AsyncClient) -> None:
     # Verify it exists in Org A workflows
     wfs = await client.get(f"/api/v1/organizations/{a.org_id}/workflows", headers=a.headers)
     assert any(w["id"] == wf["id"] for w in wfs.json())
+
+
+async def test_system_templates_are_read_only_in_the_database(client: AsyncClient) -> None:
+    """Defense in depth: even raw SQL as the app role cannot change or delete shared templates."""
+    import uuid
+
+    from sqlalchemy import text
+
+    from app.database.session import SessionFactory, set_rls_context
+
+    a = await register(client, "tmpl-rls@example.com")
+    async with SessionFactory() as db:
+        await set_rls_context(db, user_id=None, org_id=uuid.UUID(a.org_id))
+        assert (await db.scalar(text("SELECT count(*) FROM workflow_templates WHERE is_system"))) >= 5
+        deleted = await db.execute(text("DELETE FROM workflow_templates WHERE is_system"))
+        hijacked = await db.execute(
+            text("UPDATE workflow_templates SET is_system = false, organization_id = :o WHERE is_system"),
+            {"o": a.org_id},
+        )
+        assert deleted.rowcount == 0 and hijacked.rowcount == 0  # type: ignore[attr-defined]
+        await db.rollback()

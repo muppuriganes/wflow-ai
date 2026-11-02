@@ -258,8 +258,7 @@ async def expire_approval(organization_id: str, approval_id: str) -> None:
 async def dispatch_schedule_activity(inp: dict[str, Any]) -> dict[str, Any]:
     from app.services.schedules import fire_schedule_from_activity
 
-    schedule_id = inp["schedule_id"]
-    return await fire_schedule_from_activity(schedule_id)
+    return await fire_schedule_from_activity(inp["schedule_id"], inp.get("fire_key"))
 
 
 ALL_ACTIVITIES: list[Callable[..., Any]] = [

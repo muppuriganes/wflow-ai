@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
 import { Input, NativeSelect } from "@/components/ui/input";
+import { errorMessage } from "@/services/api";
 import { inboxApi } from "@/services/inbox";
 import { schedulesApi } from "@/services/schedules";
 import { workflowsApi } from "@/services/workflows";
@@ -47,6 +49,9 @@ export function CreateScheduleDialog({ open, onOpenChange }: Props) {
     enabled: open,
   });
 
+  // The server only accepts published workflows whose trigger is "On a schedule".
+  const schedulable = (workflows.data ?? []).filter((w) => w.trigger_type === "trigger.schedule" && w.published_version);
+
   const tags = useQuery({
     queryKey: orgKeys.scoped(org.id, "tags"),
     queryFn: () => inboxApi.tags(org.id),
@@ -55,7 +60,7 @@ export function CreateScheduleDialog({ open, onOpenChange }: Props) {
 
   const create = useMutation({
     mutationFn: () => {
-      const config: Record<string, any> = { time };
+      const config: Record<string, unknown> = { time };
       if (frequency === "weekly") {
         config.days = selectedDays;
       } else if (frequency === "monthly") {
@@ -81,9 +86,7 @@ export function CreateScheduleDialog({ open, onOpenChange }: Props) {
       onOpenChange(false);
       reset();
     },
-    onError: (err: any) => {
-      toast.error(err.message || "Failed to create schedule");
-    },
+    onError: (err) => toast.error(errorMessage(err)),
   });
 
   const reset = () => {
@@ -133,12 +136,28 @@ export function CreateScheduleDialog({ open, onOpenChange }: Props) {
       }
     >
       <div className="space-y-3.5">
-        <Field label="Workflow">
+        <Field
+          label="Workflow"
+          hint={
+            workflows.data && !schedulable.length ? (
+              <>
+                No workflow can be scheduled yet. Build one that starts with “On a schedule” and publish it in{" "}
+                <Link to="/workflows" className="text-primary hover:underline" onClick={() => onOpenChange(false)}>
+                  Workflows
+                </Link>
+                .
+              </>
+            ) : (
+              "Published workflows that start “On a schedule”."
+            )
+          }
+        >
           <NativeSelect value={workflowId} onChange={(e) => handleWorkflowChange(e.target.value)}>
             <option value="">Select a workflow...</option>
-            {workflows.data?.map((w) => (
+            {schedulable.map((w) => (
               <option key={w.id} value={w.id}>
-                {w.name} ({w.status})
+                {w.name}
+                {w.status !== "active" ? ` (${w.status})` : ""}
               </option>
             ))}
           </NativeSelect>

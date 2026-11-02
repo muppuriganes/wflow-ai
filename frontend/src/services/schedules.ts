@@ -19,3 +19,4 @@ export const schedulesApi = {
   delete: (orgId: string, id: string) =>
     api<void>(`${base(orgId)}/${id}`, { method: "DELETE" }),
 };
+

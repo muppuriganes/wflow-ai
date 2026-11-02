@@ -60,6 +60,15 @@ contact has tag. Actions: send message, add/remove tag, assign, set status, set 
 create lead, create follow-up task. Data: set variable. Flow: delay, wait for reply (replied / timeout),
 stop. People: request approval (approved / rejected / timeout), hand over to a person.
 
+## Schedules (M5)
+
+A schedule (`/schedules`) points at a published workflow whose trigger is **On a schedule**; the timing
+(once, daily, weekly, monthly, cron) and timezone live on the schedule. Each schedule is a Temporal Schedule
+(`wfs-<id>`, overlap *skip*, 15-minute catch-up) that starts `ScheduleTriggerWorkflow`, whose activity looks
+up the organization through `schedule_org_by_id` (SECURITY DEFINER — no tenant context exists yet), then starts
+one run, or one run per contact with the target tag (latest conversation; opted-out contacts and taken-over
+conversations are skipped). Event keys include the Temporal fire id, so activity retries never start a run twice.
+
 ## Webhooks
 
 `POST /api/v1/hooks/{token}` with a JSON object (≤ 64 KB), 60 requests/min per token. The token is the
@@ -78,5 +87,5 @@ Tests run real workflows against the same dev server on a unique task queue, wit
 
 ## Not yet
 
-Loops, parallel branches that join, schedules (M5), templates (M5), integrations/HTTP steps (M6),
+Loops, parallel branches that join, integrations/HTTP steps (M6),
 AI steps (AI track).

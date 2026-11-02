@@ -148,10 +148,7 @@ export function SchedulesPage() {
                       )}
                     </TD>
                     <TD>
-                      <Badge tone={isActive ? "success" : "neutral"} className="gap-1.5">
-                        <StatusDot tone={isActive ? "success" : "neutral"} label={schedule.status} />
-                        <span className="capitalize">{schedule.status}</span>
-                      </Badge>
+                      <StatusDot tone={isActive ? "success" : "neutral"} label={isActive ? "Active" : "Paused"} />
                     </TD>
                     <TD>
                       <Link

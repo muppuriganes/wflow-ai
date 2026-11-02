@@ -16,3 +16,4 @@ export const templatesApi = {
   instantiate: (orgId: string, id: string) =>
     api<WorkflowDetail>(`${base(orgId)}/${id}/instantiate`, { method: "POST" }),
 };
+

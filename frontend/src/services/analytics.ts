@@ -25,3 +25,4 @@ export const analyticsApi = {
   exportUrl: (orgId: string, type = "conversations", range = "30d") =>
     `/api/v1/organizations/${orgId}/analytics/export?type=${encodeURIComponent(type)}&range=${encodeURIComponent(range)}`,
 };
+

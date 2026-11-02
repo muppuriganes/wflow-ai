@@ -240,3 +240,124 @@ async def test_schedule_tenant_isolation(client: AsyncClient, make_client: Any) 
         headers=b.headers,
     )
     assert del_res.status_code == 404
+
+
+async def test_temporal_fire_starts_runs_once_per_fire(client: AsyncClient, gateway: Any) -> None:
+    """The path Temporal takes on each fire: no tenant context at first, and retries must not duplicate."""
+    from app.services.schedules import fire_schedule_from_activity
+    from app.workers.channel_events import process_event
+    from app.workflow_engine import client as engine
+    from tests.test_channels import connected
+    from tests.test_inbox import received_from
+
+    a = await register(client, "fire@example.com")
+    base = f"/api/v1/organizations/{a.org_id}"
+    wf_id = await _create_workflow(client, a)
+    tag = (await client.post(f"{base}/tags", headers=a.headers, json={"name": "Weekly"})).json()
+    conn = await connected(a, gateway)
+    for phone, name in (("919800000001", "Asha"), ("919800000002", "Ravi"), ("919800000003", "Taken")):
+        await process_event(received_from(a, conn, phone, name, "hi"))  # type: ignore[arg-type]
+    convs = (await client.get(f"{base}/conversations?view=all", headers=a.headers)).json()["items"]
+    for conv in convs:
+        await client.put(f"{base}/contacts/{conv['contact']['id']}/tags", headers=a.headers, json=[tag["id"]])
+    taken = next(c for c in convs if c["contact"]["display_name"] == "Taken")
+    await client.post(
+        f"{base}/conversations/{taken['id']}/takeover", headers=a.headers, json={"automation_paused": True}
+    )
+
+    sched = (await client.post(f"{base}/schedules", headers=a.headers, json={
+        "workflow_id": wf_id, "name": "Weekly hello", "schedule_type": "weekly",
+        "config": {"days": ["mon"], "time": "09:00"}, "target_tag_id": tag["id"],
+    })).json()  # fmt: skip
+    assert sched["next_run_at"], "Temporal schedule should report its next fire"
+    desc = (
+        await (await engine.get_client())
+        .get_schedule_handle(engine.temporal_sched_id(sched["id"]))
+        .describe()
+    )
+    from zoneinfo import ZoneInfo
+
+    upcoming = [t.astimezone(ZoneInfo(sched["timezone"])) for t in desc.info.next_action_times]
+    assert upcoming and all((t.weekday(), t.hour, t.minute) == (0, 9, 0) for t in upcoming)
+
+    fire_key = "wf-sched-x-2026-11-09T03:30:00Z"
+    first = await fire_schedule_from_activity(sched["id"], fire_key)
+    retry = await fire_schedule_from_activity(sched["id"], fire_key)
+    assert first == {"ok": True, "runs_started": 2}  # the taken-over conversation is skipped
+    assert retry == {"ok": True, "runs_started": 0}
+
+    await client.post(f"{base}/schedules/{sched['id']}/pause", headers=a.headers)
+    assert (await fire_schedule_from_activity(sched["id"], "next"))["skipped"] == "Schedule is paused"
+    await client.delete(f"{base}/schedules/{sched['id']}", headers=a.headers)
+    assert (await fire_schedule_from_activity(sched["id"], "later"))["ok"] is False
+
+
+async def test_schedule_validation(client: AsyncClient) -> None:
+    a = await register(client, "sched-validate@example.com")
+    base = f"/api/v1/organizations/{a.org_id}"
+    wf_id = await _create_workflow(client, a)
+
+    async def create(schedule_type: str, config: dict[str, Any], **extra: Any) -> Any:
+        body = {"workflow_id": wf_id, "name": "x", "schedule_type": schedule_type, "config": config, **extra}
+        return await client.post(f"{base}/schedules", headers=a.headers, json=body)
+
+    assert (await create("daily", {"time": "25:00"})).status_code == 422
+    assert (await create("cron", {"cron_expression": "* * *"})).status_code == 422
+    assert (await create("cron", {"cron_expression": "0 9 * * MON; rm"})).status_code == 422
+    assert (await create("cron", {"cron_expression": "0 30 * * *"})).status_code == 422
+    assert (await create("once", {})).status_code == 422  # used to silently become daily
+    assert (await create("once", {"date": "2020-01-01"})).status_code == 422
+    assert (await create("daily", {}, timezone="Mars/Olympus")).status_code == 422
+    ok = await create("once", {"date": "2099-01-01", "time": "10:30", "junk": 1}, timezone="Asia/Kolkata")
+    assert ok.status_code == 201 and ok.json()["config"] == {"time": "10:30", "date": "2099-01-01"}
+    assert ok.json()["next_run_at"].startswith("2099-01-01T05:00")  # 10:30 IST in UTC
+
+    # Only published workflows that start "On a schedule" can be scheduled.
+    other = (await client.post(f"{base}/workflows", headers=a.headers, json={"name": "Keyword", "definition": {
+        "nodes": [node("t", "trigger.message_received", {"keywords": ["hi"]}), node("s", "logic.stop")],
+        "edges": [edge("t", "s")],
+    }})).json()  # fmt: skip
+    await client.post(f"{base}/workflows/{other['id']}/publish", headers=a.headers)
+    res = await client.post(
+        f"{base}/schedules", headers=a.headers, json={"workflow_id": other["id"], "name": "x"}
+    )
+    assert res.status_code == 422 and res.json()["error"]["code"] == "workflow_not_schedulable"
+
+
+async def test_scheduled_workflow_can_message_tagged_contacts(client: AsyncClient) -> None:
+    """The headline use case: a schedule trigger followed by a WhatsApp message validates."""
+    a = await register(client, "sched-send@example.com")
+    base = f"/api/v1/organizations/{a.org_id}"
+    wf = (await client.post(f"{base}/workflows", headers=a.headers, json={"name": "Monday hello", "definition": {
+        "nodes": [node("t", "trigger.schedule"), node("s", "action.send_message", {"text": "Hi {{contact.name}}"})],
+        "edges": [edge("t", "s")],
+    }})).json()  # fmt: skip
+    res = (await client.post(f"{base}/workflows/{wf['id']}/publish", headers=a.headers)).json()
+    assert res["validation"]["ok"], res["validation"]
+    assert "skipped" in res["validation"]["warnings"][0]["message"]
+
+
+@pytest.mark.usefixtures("temporal_worker")
+async def test_temporal_schedule_fires_end_to_end(client: AsyncClient) -> None:
+    import asyncio
+
+    from app.workflow_engine import client as engine
+
+    a = await register(client, "fire-e2e@example.com")
+    base = f"/api/v1/organizations/{a.org_id}"
+    wf_id = await _create_workflow(client, a)
+    sched = (await client.post(f"{base}/schedules", headers=a.headers, json={
+        "workflow_id": wf_id, "name": "Nightly", "schedule_type": "daily", "config": {"time": "03:00"},
+    })).json()  # fmt: skip
+    # Fire now through Temporal itself: schedule -> trigger workflow -> activity -> workflow run.
+    await (await engine.get_client()).get_schedule_handle(engine.temporal_sched_id(sched["id"])).trigger()
+    for _ in range(60):
+        runs = (await client.get(f"{base}/workflow-runs?workflow_id={wf_id}", headers=a.headers)).json()[
+            "items"
+        ]
+        if runs and runs[0]["status"] == "COMPLETED":
+            break
+        await asyncio.sleep(0.25)
+    assert [(r["trigger_type"], r["status"]) for r in runs] == [("trigger.schedule", "COMPLETED")]
+    refreshed = (await client.get(f"{base}/schedules/{sched['id']}", headers=a.headers)).json()
+    assert refreshed["total_runs"] == 1 and refreshed["last_run_at"]

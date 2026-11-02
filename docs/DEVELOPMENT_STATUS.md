@@ -49,15 +49,15 @@ _Last updated: 2026-11-02 — end of M5._
 ### M5 — Schedules, templates & analytics
 | Area | Details |
 |---|---|
-| Schedules | `trigger.schedule` workflow trigger; one-off and recurring (daily / weekly days / monthly / cron), evaluated in the organization's IANA timezone; Temporal Schedules with skip overlap policy and 15-min catchup window; manual "Run now"; optional contact tag target (dispatches a run per matching contact respecting opt-out); Schedules page (`/schedules`) with list, create, pause, resume, trigger, delete |
+| Schedules | “On a schedule” workflow trigger (timing lives on the schedule, so one workflow can have several); one-off and recurring (daily / weekly days / monthly / cron), evaluated in the organization's IANA timezone; Temporal Schedules with skip overlap policy and 15-min catchup window; manual "Run now"; optional contact tag target (one run per tagged contact with their latest conversation, skipping opted-out contacts and conversations a person has taken over; scheduled workflows can send WhatsApp messages); every fire is de-duplicated, so engine retries never start runs twice; config, cron and timezone validated; Schedules page (`/schedules`) with list, create, pause, resume, trigger, delete |
 | Templates | Seeded starter blueprints (Keyword auto-reply, Out-of-hours reply, New-lead capture, Approval for discounts, Follow-up after no reply); Templates page (`/templates`) with category tabs, search, read-only React Flow canvas preview modal, and "Use template" instantiation into draft workflow |
-| Analytics | Real data only (no mock data); `/analytics` and `/` Overview dashboard; date ranges (7d, 30d, 90d); conversation stats, response time, inbound/outbound volume timeline, CRM pipeline value & conversion, task health, workflow execution reliability & top failing steps; CSV export with `analytics.read` permission |
+| Analytics | Real data only (no mock data); `/analytics` and `/` Overview dashboard; date ranges (7d, 30d, 90d); conversation stats, response time, inbound/outbound volume timeline, CRM pipeline value & conversion, task health, workflow execution reliability & top failing steps; CSV export with `analytics.read` permission (formula-safe cells, 50k-row cap); headline numbers follow the selected range |
 
 ## Test results (actually executed 2026-11-02)
-- Backend: `uv run pytest` → **75 passed** (M5 adds 13 tests covering schedules, templates, real analytics, and RLS tenant isolation). M4 baseline: 62 passed; M3 baseline: 48 passed.
+- Backend: `uv run pytest` → **81 passed** (M5: 19 tests — schedules incl. a real Temporal fire end to end and retry de-duplication, validation, templates incl. database-level read-only system templates, analytics ranges/exports, isolation). M4 baseline: 62 passed; M3 baseline: 48 passed.
 - Gateway: `npm test` → **25 passed**.
 - Frontend: `npm test` → **17 passed**; `npm run typecheck` 0 errors; `npm run build` passes cleanly with per-route code splitting for schedules, templates, and analytics.
-- Manual: verified in browser against local stack (Postgres :55432, Redis :56379, MinIO :59000, Temporal :57233).
+- Manual (M5 review): weekly schedule for a tag created in the UI → Run now → WhatsApp message sent to the tagged simulator contact; analytics on real data; template preview → Use template → draft ready to publish.
 
 ## Not built yet
 M6 (Commercial platform: plans & usage limits, billing foundation, integrations framework / webhooks, Super Admin console), M7 (Hardening), AI track.
@@ -73,4 +73,6 @@ M6 (Commercial platform: plans & usage limits, billing foundation, integrations 
 - Workflows are acyclic (no loops) and branches don't re-join in parallel; the builder is not usable at phone
   width (the list, Execution Logs, Schedules, Templates, and Analytics are). Approvals can be decided in Execution Logs only (no notifications yet).
 - `mypy app` still reports pre-existing typing issues (redis/boto3 stubs, a few older call sites); ruff is clean.
+- Schedules can't be edited in the UI yet (API supports it: delete and recreate in the UI). Fan-out to very large tags runs in one activity (fine for thousands of contacts, not hundreds of thousands).
+- Analytics shows the message timeline as a table; per-agent response time is not computed yet.
 - Emails are sent inside the request (no queued retries yet). Org deletion is soft; no purge job yet.

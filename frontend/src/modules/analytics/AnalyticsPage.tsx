@@ -209,7 +209,7 @@ export function AnalyticsPage() {
                   }
                   className="text-[10px]"
                 >
-                  {data.workflows.success_rate !== null ? `${data.workflows.success_rate}%` : "—"}
+                  {data.workflows.success_rate !== null ? `${Math.round(data.workflows.success_rate)}%` : "—"}
                 </Badge>
               </div>
             </Card>

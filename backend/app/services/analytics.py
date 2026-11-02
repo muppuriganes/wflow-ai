@@ -4,11 +4,13 @@ import csv
 import io
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import AppError
 from app.models import (
     ChannelConnection,
     Contact,
@@ -31,6 +33,15 @@ from app.schemas.analytics import (
     TopFailingStep,
 )
 
+RANGE_DAYS = {"7d": 7, "30d": 30, "90d": 90}
+MAX_CUSTOM_DAYS = 366
+MAX_EXPORT_ROWS = 50_000
+
+
+class InvalidRangeError(AppError):
+    status_code = 422
+    code = "invalid_range"
+
 
 def _resolve_timeframe(
     org_tz: str,
@@ -38,27 +49,34 @@ def _resolve_timeframe(
     from_date: datetime | None = None,
     to_date: datetime | None = None,
 ) -> tuple[datetime, datetime]:
+    """Returns the UTC bounds. Dates without a timezone are read in the organization's timezone."""
     tz = ZoneInfo(org_tz or "UTC")
-    now = datetime.now(tz)
-    end_dt = to_date or now
 
-    if range_str == "custom" and from_date:
-        start_dt = from_date
-    elif range_str == "30d":
-        start_dt = end_dt - timedelta(days=30)
-    elif range_str == "90d":
-        start_dt = end_dt - timedelta(days=90)
-    else:  # default 7d
-        start_dt = end_dt - timedelta(days=7)
+    def local(d: datetime) -> datetime:
+        return d if d.tzinfo else d.replace(tzinfo=tz)
 
-    # Convert to UTC for DB queries
+    if range_str == "custom":
+        if from_date is None:
+            raise InvalidRangeError("A custom range needs a start date")
+        start_dt = local(from_date)
+        end_dt = local(to_date) if to_date else datetime.now(tz)
+        if end_dt <= start_dt:
+            raise InvalidRangeError("The end of the range must be after its start")
+        if end_dt - start_dt > timedelta(days=MAX_CUSTOM_DAYS):
+            raise InvalidRangeError(f"A custom range can cover at most {MAX_CUSTOM_DAYS} days")
+    else:
+        end_dt = datetime.now(tz)
+        start_dt = end_dt - timedelta(days=RANGE_DAYS[range_str])
     return start_dt.astimezone(UTC), end_dt.astimezone(UTC)
 
 
-async def get_overview_metrics(db: AsyncSession, org_id: uuid.UUID) -> AnalyticsOverviewOut:
-    org = await db.get(Organization, org_id)
-    tz = org.timezone if org else "UTC"
-    start_dt, end_dt = _resolve_timeframe(tz, "7d")
+async def get_overview_metrics(
+    db: AsyncSession, org_id: uuid.UUID, start_dt: datetime | None = None, end_dt: datetime | None = None
+) -> AnalyticsOverviewOut:
+    """Headline numbers for the given window (the last 7 days by default)."""
+    if start_dt is None or end_dt is None:
+        org = await db.get(Organization, org_id)
+        start_dt, end_dt = _resolve_timeframe(org.timezone if org else "UTC", "7d")
 
     # 1. Conversations
     new_convs = (
@@ -111,7 +129,7 @@ async def get_overview_metrics(db: AsyncSession, org_id: uuid.UUID) -> Analytics
         )
     ).first()
     active_leads = leads_summary[0] if leads_summary else 0
-    pipeline_val = float(leads_summary[1]) if leads_summary else 0.0
+    pipeline_val = float(leads_summary[1] or 0) if leads_summary else 0.0
 
     # 4. Overdue Tasks
     now_utc = datetime.now(UTC)
@@ -145,9 +163,7 @@ async def get_overview_metrics(db: AsyncSession, org_id: uuid.UUID) -> Analytics
     runs_completed = wf_counts[1] if wf_counts else 0
     runs_failed = wf_counts[2] if wf_counts else 0
     finished = runs_completed + runs_failed
-    wf_success_rate = (
-        (runs_completed / finished * 100.0) if finished > 0 else (100.0 if runs_total > 0 else None)
-    )
+    wf_success_rate = (runs_completed / finished * 100.0) if finished > 0 else None
 
     # 6. Response time calculation:
     # Average seconds between first inbound and first outbound in conversations
@@ -178,7 +194,7 @@ async def get_full_analytics(
     tz_str = org.timezone if org else "UTC"
     start_dt, end_dt = _resolve_timeframe(tz_str, range_str, from_date, to_date)
 
-    overview = await get_overview_metrics(db, org_id)
+    overview = await get_overview_metrics(db, org_id, start_dt, end_dt)
 
     # 1. Conversations details
     resolved_count = (
@@ -241,33 +257,30 @@ async def get_full_analytics(
         for uid, name, cnt in agent_rows.all()
     ]
 
-    # 2. Daily message volume series
+    # 2. Daily message volume, grouped in SQL by the organization's local day
+    local_day = func.date(func.timezone(tz_str, Message.created_at))
     msg_rows = await db.execute(
         select(
-            Message.created_at,
-            Message.direction,
-        ).where(
-            Message.organization_id == org_id,
-            Message.created_at >= start_dt,
-            Message.created_at <= end_dt,
+            local_day,
+            func.count(case((Message.direction == "inbound", 1))),
+            func.count(case((Message.direction == "outbound", 1))),
         )
+        .where(
+            Message.organization_id == org_id, Message.created_at >= start_dt, Message.created_at <= end_dt
+        )
+        .group_by(local_day)
     )
     tz = ZoneInfo(tz_str)
     daily_map: dict[str, dict[str, int]] = {}
-    # Seed all days in timeframe so chart has no missing holes
+    # Seed every day in the window so the chart has no holes
     curr = start_dt.astimezone(tz).date()
     end_date = end_dt.astimezone(tz).date()
     while curr <= end_date:
         daily_map[curr.isoformat()] = {"inbound": 0, "outbound": 0}
         curr += timedelta(days=1)
-
-    for created_at, direction in msg_rows.all():
-        d_str = created_at.astimezone(tz).date().isoformat()
-        if d_str in daily_map:
-            if direction == "inbound":
-                daily_map[d_str]["inbound"] += 1
-            else:
-                daily_map[d_str]["outbound"] += 1
+    for day, inbound, outbound in msg_rows.all():
+        if day.isoformat() in daily_map:
+            daily_map[day.isoformat()] = {"inbound": inbound, "outbound": outbound}
 
     daily_messages = [
         DailyMessageVolume(
@@ -304,7 +317,7 @@ async def get_full_analytics(
         LeadStageStat(
             stage=stage,
             count=cnt,
-            total_value=float(val),
+            total_value=float(val or 0),
         ).model_dump()
         for stage, cnt, val in lead_stage_rows.all()
     ]
@@ -362,7 +375,7 @@ async def get_full_analytics(
     comp_runs = wf_counts[1] if wf_counts else 0
     fail_runs = wf_counts[2] if wf_counts else 0
     wf_fin = comp_runs + fail_runs
-    success_rate = (comp_runs / wf_fin * 100.0) if wf_fin > 0 else (100.0 if total_runs > 0 else None)
+    success_rate = (comp_runs / wf_fin * 100.0) if wf_fin > 0 else None
 
     # Top failing steps
     fail_steps_rows = await db.execute(
@@ -427,49 +440,33 @@ async def _calculate_avg_response_time(
     start_dt: datetime,
     end_dt: datetime,
 ) -> float | None:
-    # Fetch recent conversations that have messages in range
-    conv_ids = (
-        (
-            await db.execute(
-                select(Conversation.id)
-                .where(
-                    Conversation.organization_id == org_id,
-                    Conversation.created_at >= start_dt,
-                    Conversation.created_at <= end_dt,
-                )
-                .limit(200)
-            )
+    """Average time from a conversation's first customer message to the first reply after it,
+    over the conversations started in the window."""
+    first_in = (
+        select(Message.conversation_id.label("cid"), func.min(Message.created_at).label("at"))
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Message.organization_id == org_id,
+            Message.direction == "inbound",
+            Conversation.created_at >= start_dt,
+            Conversation.created_at <= end_dt,
         )
-        .scalars()
-        .all()
+        .group_by(Message.conversation_id)
+        .subquery()
     )
-    if not conv_ids:
-        return None
-
-    msg_rows = (
-        await db.execute(
-            select(Message.conversation_id, Message.direction, Message.created_at)
-            .where(Message.conversation_id.in_(conv_ids))
-            .order_by(Message.conversation_id, Message.created_at.asc())
+    first_out = (
+        select(first_in.c.cid, func.min(Message.created_at).label("at"))
+        .join(Message, and_(Message.conversation_id == first_in.c.cid, Message.created_at >= first_in.c.at))
+        .where(Message.direction == "outbound")
+        .group_by(first_in.c.cid)
+        .subquery()
+    )
+    avg = await db.scalar(
+        select(func.avg(func.extract("epoch", first_out.c.at - first_in.c.at))).join(
+            first_in, first_in.c.cid == first_out.c.cid
         )
-    ).all()
-
-    first_in: dict[uuid.UUID, datetime] = {}
-    first_out: dict[uuid.UUID, datetime] = {}
-    for cid, direction, created_at in msg_rows:
-        if direction == "inbound" and cid not in first_in:
-            first_in[cid] = created_at
-        elif direction == "outbound" and cid in first_in and cid not in first_out:
-            first_out[cid] = created_at
-
-    diffs = [
-        (first_out[cid] - first_in[cid]).total_seconds()
-        for cid in first_out
-        if first_out[cid] >= first_in[cid]
-    ]
-    if not diffs:
-        return None
-    return round(sum(diffs) / len(diffs), 1)
+    )
+    return round(float(avg), 1) if avg is not None else None
 
 
 async def export_csv(
@@ -484,11 +481,11 @@ async def export_csv(
     tz = ZoneInfo(tz_str)
 
     output = io.StringIO()
-    writer = csv.writer(output)
+    writer = _SafeWriter(csv.writer(output))
 
     if export_type == "conversations":
         writer.writerow(["ID", "Contact Phone", "Status", "Priority", "Created At", "Resolved At"])
-        rows = (
+        conv_rows = (
             await db.execute(
                 select(
                     Conversation.id,
@@ -505,9 +502,10 @@ async def export_csv(
                     Conversation.created_at <= end_dt,
                 )
                 .order_by(Conversation.created_at.desc())
+                .limit(MAX_EXPORT_ROWS)
             )
         ).all()
-        for cid, phone, status, prio, created, resolved in rows:
+        for cid, phone, status, prio, created, resolved in conv_rows:
             writer.writerow(
                 [
                     str(cid),
@@ -521,7 +519,7 @@ async def export_csv(
 
     elif export_type == "messages":
         writer.writerow(["ID", "Direction", "Type", "Status", "Content Preview", "Created At"])
-        rows = (
+        msg_rows = (
             await db.execute(
                 select(
                     Message.id,
@@ -537,9 +535,10 @@ async def export_csv(
                     Message.created_at <= end_dt,
                 )
                 .order_by(Message.created_at.desc())
+                .limit(MAX_EXPORT_ROWS)
             )
         ).all()
-        for mid, direction, mtype, status, content, created in rows:
+        for mid, direction, mtype, status, content, created in msg_rows:
             writer.writerow(
                 [
                     str(mid),
@@ -553,7 +552,7 @@ async def export_csv(
 
     elif export_type == "leads":
         writer.writerow(["ID", "Title", "Stage", "Value", "Currency", "Source", "Created At", "Closed At"])
-        rows = (
+        lead_rows = (
             await db.execute(
                 select(
                     Lead.id,
@@ -571,9 +570,10 @@ async def export_csv(
                     Lead.created_at <= end_dt,
                 )
                 .order_by(Lead.created_at.desc())
+                .limit(MAX_EXPORT_ROWS)
             )
         ).all()
-        for lid, title, stage, val, curr, src, created, closed in rows:
+        for lid, title, stage, val, curr, src, created, closed in lead_rows:
             writer.writerow(
                 [
                     str(lid),
@@ -589,7 +589,7 @@ async def export_csv(
 
     elif export_type == "workflows":
         writer.writerow(["ID", "Workflow ID", "Trigger Type", "Status", "Started At", "Finished At", "Error"])
-        rows = (
+        run_rows = (
             await db.execute(
                 select(
                     WorkflowRun.id,
@@ -606,9 +606,10 @@ async def export_csv(
                     WorkflowRun.created_at <= end_dt,
                 )
                 .order_by(WorkflowRun.created_at.desc())
+                .limit(MAX_EXPORT_ROWS)
             )
         ).all()
-        for rid, wfid, ttype, status, created, fin, err in rows:
+        for rid, wfid, ttype, status, created, fin, err in run_rows:
             writer.writerow(
                 [
                     str(rid),
@@ -622,3 +623,20 @@ async def export_csv(
             )
 
     return output.getvalue()
+
+
+class _SafeWriter:
+    """CSV writer that neutralises spreadsheet formulas: customer-written text such as
+    "=HYPERLINK(...)" must not run when an export is opened in Excel or Google Sheets."""
+
+    def __init__(self, writer: Any) -> None:
+        self._writer = writer
+
+    def writerow(self, row: list[Any]) -> None:
+        self._writer.writerow([_safe_cell(v) for v in row])
+
+
+def _safe_cell(value: Any) -> Any:
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value

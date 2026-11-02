@@ -157,3 +157,39 @@ async def test_analytics_tenant_isolation(client: AsyncClient, make_client: Any)
     assert b_res.status_code == 200
     assert b_res.json()["total_pipeline_value"] == 0.0
     assert b_res.json()["active_leads_count"] == 0
+
+
+async def test_analytics_ranges_exports_and_response_time(client: AsyncClient, gateway: Any) -> None:
+    from app.workers.channel_events import process_event
+    from tests.test_channels import connected
+    from tests.test_inbox import received_from
+
+    a = await register(client, "analytics-fixes@example.com")
+    base = f"/api/v1/organizations/{a.org_id}/analytics"
+    conn = await connected(a, gateway)
+    await process_event(received_from(a, conn, "919811122233", "Mallory", '=HYPERLINK("http://evil","x")'))  # type: ignore[arg-type]
+    convs = (
+        await client.get(f"/api/v1/organizations/{a.org_id}/conversations?view=all", headers=a.headers)
+    ).json()
+    conv_id = convs["items"][0]["id"]
+    sent = await client.post(f"/api/v1/organizations/{a.org_id}/conversations/{conv_id}/messages",
+                             headers=a.headers, json={"text": "Hello!", "client_message_id": "analytics-1"})  # fmt: skip
+    assert sent.status_code in (200, 201), sent.text
+
+    full = (await client.get(f"{base}?range=30d", headers=a.headers)).json()
+    # Headline numbers follow the selected range (they used to be fixed to 7 days).
+    assert full["overview"]["new_conversations"] == 1 and full["range"] == "30d"
+    assert full["overview"]["total_messages_in"] == 1 and full["overview"]["total_messages_out"] == 1
+    assert full["overview"]["avg_response_time_seconds"] is not None
+    assert sum(d["inbound"] for d in full["messages"]) == 1 and len(full["messages"]) >= 30
+    assert full["workflows"]["success_rate"] is None  # no finished runs: no rate, not 100%
+
+    assert (await client.get(f"{base}?range=1y", headers=a.headers)).status_code == 422
+    assert (await client.get(f"{base}?range=custom", headers=a.headers)).status_code == 422
+    custom = await client.get(f"{base}?range=custom&from_date=2026-01-01T00:00:00&to_date=2026-02-01T00:00:00",
+                              headers=a.headers)  # fmt: skip
+    assert custom.status_code == 200 and custom.json()["overview"]["new_conversations"] == 0
+    assert (await client.get(f"{base}/export?type=users", headers=a.headers)).status_code == 422
+
+    csv_text = (await client.get(f"{base}/export?type=messages", headers=a.headers)).text
+    assert "'=HYPERLINK" in csv_text and ",=HYPERLINK" not in csv_text

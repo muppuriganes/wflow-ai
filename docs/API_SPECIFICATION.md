@@ -160,21 +160,21 @@ Base URL `/api/v1`. Interactive OpenAPI docs: `/api/docs` (schema at `/api/opena
 ### Schedules
 | Method | Path | Permission / notes |
 |---|---|---|
-| GET / POST | `/schedules` | `workflows.read` / `workflows.manage`; list and create schedule |
-| GET / PATCH / DELETE | `/schedules/{id}` | `workflows.read` / `workflows.manage` |
-| POST | `/schedules/{id}/pause`, `/schedules/{id}/resume` | `workflows.manage`; pauses or resumes Temporal Schedule |
-| POST | `/schedules/{id}/trigger` | `workflows.manage`; immediate execution of scheduled workflow |
+| GET / POST | `/schedules` | `workflows.read` / `schedules.manage`. Create: `{workflow_id, name, schedule_type: once\|daily\|weekly\|monthly\|cron, config, timezone?, target_tag_id?}`; the workflow must be published with the “On a schedule” trigger (422 `workflow_not_schedulable`); config is validated (422 `invalid_schedule`); 503 if the engine can't store it (nothing is saved) |
+| GET / PATCH / DELETE | `/schedules/{id}` | `workflows.read` / `schedules.manage`; PATCH `target_tag_id: null` clears the tag |
+| POST | `/schedules/{id}/pause`, `/schedules/{id}/resume` | `schedules.manage` |
+| POST | `/schedules/{id}/trigger` | `schedules.manage`; fires now, returns `{runs_started}` |
 
 ### Workflow Templates
 | Method | Path | Permission / notes |
 |---|---|---|
-| GET / POST | `/workflow-templates?category=` | `workflows.read` / `templates.manage`; lists system and custom templates |
-| GET / DELETE | `/workflow-templates/{id}` | `workflows.read` / `templates.manage`; system templates cannot be deleted |
+| GET / POST | `/workflow-templates?category=` | `templates.read` / `templates.manage`; lists system and custom templates |
+| GET / DELETE | `/workflow-templates/{id}` | `templates.read` / `templates.manage`; system templates are read-only (also enforced by RLS) |
 | POST | `/workflow-templates/{id}/instantiate` | `workflows.manage`; creates a new draft workflow from blueprint |
 
 ### Analytics
 | Method | Path | Permission / notes |
 |---|---|---|
-| GET | `/analytics/overview` | `analytics.read` or `org.read`; returns live counters for dashboard overview |
-| GET | `/analytics?range=7d\|30d\|90d&from_date=&to_date=` | `analytics.read`; aggregate conversations, volume timeline, CRM, workflow health |
-| GET | `/analytics/export?type=conversations\|messages\|crm\|workflows&range=30d` | `analytics.read`; CSV file download |
+| GET | `/analytics/overview` | `analytics.read` or `org.read`; last-7-days counters for the home dashboard |
+| GET | `/analytics?range=7d\|30d\|90d\|custom&from_date=&to_date=` | `analytics.read`; everything (headline numbers included) covers the chosen range; custom ranges are read in the org timezone, at most 366 days (422 `invalid_range`) |
+| GET | `/analytics/export?type=conversations\|messages\|leads\|workflows&range=7d\|30d\|90d` | `analytics.read`; CSV, at most 50,000 rows; cells starting with `= + - @` are prefixed with `'` so spreadsheets never run them as formulas |
