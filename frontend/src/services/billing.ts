@@ -14,3 +14,4 @@ export const billingApi = {
   resumeSubscription: (orgId: string) =>
     api<Subscription>(`${base(orgId)}/resume`, { method: "POST" }),
 };
+

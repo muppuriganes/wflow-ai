@@ -45,3 +45,4 @@ export const integrationsApi = {
   deleteCredential: (orgId: string, id: string) =>
     api<void>(`${credsBase(orgId)}/${id}`, { method: "DELETE" }),
 };
+

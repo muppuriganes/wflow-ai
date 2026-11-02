@@ -9,3 +9,4 @@ export const plansApi = {
   changePlan: (orgId: string, data: { plan_key: string; billing_interval?: "monthly" | "yearly" }) =>
     api<PlanUsageOverview>(`${base(orgId)}/change`, { method: "POST", body: data }),
 };
+

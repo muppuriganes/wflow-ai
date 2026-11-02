@@ -29,3 +29,4 @@ export const adminApi = {
   restoreOrganization: (orgId: string) =>
     api<AdminOrgDetailOut>(`${base}/organizations/${orgId}/restore`, { method: "POST" }),
 };
+

@@ -190,3 +190,4 @@ async def delete_credential(
 ) -> None:
     await creds_svc.delete_credential(db, ctx, credential_id)
     await db.commit()
+

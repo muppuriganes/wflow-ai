@@ -53,18 +53,11 @@ class RateLimitedError(AppError):
     code = "rate_limited"
 
 
-class ValidationError(AppError):
-    status_code = 422
-    code = "validation_error"
-
-
 class PlanLimitExceededError(AppError):
     status_code = 402
     code = "plan_limit_reached"
 
-    def __init__(
-        self, message: str, *, metric: str | None = None, limit: int | None = None, used: int | None = None
-    ) -> None:
+    def __init__(self, message: str, *, metric: str | None = None, limit: int | None = None, used: int | None = None) -> None:
         details = {}
         if metric is not None:
             details["metric"] = metric
