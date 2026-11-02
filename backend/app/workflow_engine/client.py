@@ -16,13 +16,14 @@ from temporalio.client import (
     ScheduleUpdate,
 )
 from temporalio.common import WorkflowIDReusePolicy
+from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
 
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.logging import get_logger
-from app.workflow_engine.types import ApprovalDecision, CustomerReply, RunInput
-from app.workflow_engine.workflow import GraphWorkflow, ScheduleTriggerWorkflow
+from app.workflow_engine.types import ApprovalDecision, CustomerReply, RunInput, WebhookDeliveryInput
+from app.workflow_engine.workflow import GraphWorkflow, ScheduleTriggerWorkflow, WebhookDeliveryWorkflow
 
 log = get_logger("workflow.client")
 
@@ -71,6 +72,22 @@ async def start(inp: RunInput) -> str:
         execution_timeout=timedelta(days=60),
     )
     return handle.id
+
+
+async def start_webhook_delivery(inp: WebhookDeliveryInput) -> None:
+    """One workflow per event and endpoint; starting it twice is a no-op."""
+    client = await get_client()
+    try:
+        await client.start_workflow(
+            WebhookDeliveryWorkflow.run,
+            inp,
+            id=f"whd-{inp.endpoint_id}-{inp.event['id']}",
+            task_queue=get_settings().temporal_task_queue,
+            id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
+            execution_timeout=timedelta(hours=2),
+        )
+    except WorkflowAlreadyStartedError:
+        pass
 
 
 async def signal_reply(run_id: str, reply: CustomerReply) -> None:

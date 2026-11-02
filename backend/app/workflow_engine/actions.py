@@ -1,6 +1,7 @@
 """Side effects performed by workflow steps. Each runs inside one activity transaction with the
 run's organization as RLS context, and is idempotent where a retry could otherwise repeat it."""
 
+import base64
 import json
 import re
 import uuid
@@ -12,10 +13,11 @@ import httpx
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from temporalio.exceptions import ApplicationError
 
 from app.core.errors import AppError
 from app.core.logging import get_logger
-from app.core.ssrf import validate_url_ssrf_safe
+from app.core.ssrf import SSRFProtectionError, check_url, read_limited, safe_client
 from app.models import (
     Contact,
     ContactTag,
@@ -235,62 +237,67 @@ async def handover(
     return {"automation_paused": True, "assigned_user_id": config.get("user_id")}
 
 
+def _permanent(message: str) -> ApplicationError:
+    """A failure retrying cannot fix (bad settings, blocked address): fail the step at once."""
+    return ApplicationError(message, non_retryable=True)
+
+
 async def http_request(
     db: AsyncSession, org_id: uuid.UUID, ctx: dict[str, Any], config: dict[str, Any]
 ) -> dict[str, Any]:
-    url_raw = render(config.get("url", ""), ctx).strip()
-    if not url_raw:
-        raise StepSkipped("URL is empty")
+    url = render(config.get("url", ""), ctx).strip()
+    if not url:
+        raise StepSkipped("The URL is empty after filling in variables")
+    method = str(config.get("method") or "POST").upper()
 
-    validate_url_ssrf_safe(url_raw)
-
-    method = (config.get("method") or "POST").upper()
     headers: dict[str, str] = {}
-    headers_raw = config.get("headers")
-    if headers_raw:
-        rendered_headers = render(headers_raw, ctx).strip()
-        if rendered_headers:
-            try:
-                parsed = json.loads(rendered_headers)
-                if isinstance(parsed, dict):
-                    headers = {str(k): str(v) for k, v in parsed.items()}
-            except Exception as exc:
-                logger.warning("Failed to parse http_request custom headers: %s", exc)
-
-    body_raw = config.get("body")
-    body: str | None = None
-    if body_raw:
-        body = render(body_raw, ctx)
-
-    cred_id_raw = config.get("credential_id")
-    if cred_id_raw:
+    raw_headers = render(config.get("headers") or "", ctx).strip()
+    if raw_headers:
         try:
-            cred_id = uuid.UUID(str(cred_id_raw).strip())
-            from app.services.credentials import get_decrypted_secret
+            parsed = json.loads(raw_headers)
+        except ValueError as exc:
+            raise _permanent(f"Headers must be a JSON object: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise _permanent("Headers must be a JSON object")
+        headers = {str(k): str(v) for k, v in parsed.items()}
 
-            secret = await get_decrypted_secret(db, org_id, cred_id)
-            if secret:
-                headers.setdefault("Authorization", f"Bearer {secret}")
-        except Exception as exc:
-            logger.warning("Failed to inject credential into http_request: %s", exc)
+    if config.get("credential_id"):
+        from app.services.credentials import get_decrypted_secret
 
-    timeout = float(config.get("timeout_seconds") or 10)
-    timeout = min(max(timeout, 1.0), 30.0)
+        try:
+            kind, secret = await get_decrypted_secret(db, org_id, uuid.UUID(str(config["credential_id"])))
+        except (ValueError, AppError) as exc:
+            raise _permanent("The saved credential for this step was deleted. Choose another one.") from exc
+        if kind == "basic":
+            if ":" not in secret:
+                raise _permanent("A basic-auth credential must be saved as user:password")
+            headers["Authorization"] = "Basic " + base64.b64encode(secret.encode()).decode()
+        elif kind == "api_key":
+            headers["X-API-Key"] = secret
+        else:
+            headers["Authorization"] = f"Bearer {secret}"
 
+    body = render(config.get("body") or "", ctx) or None
+    timeout = min(max(float(config.get("timeout_seconds") or 10), 1.0), 30.0)
     try:
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-            resp = await client.request(method=method, url=url_raw, headers=headers, content=body)
-            # Response truncation: max 256 KB
-            raw_text = resp.text[:262144]
-            return {
-                "status_code": resp.status_code,
-                "success": 200 <= resp.status_code < 300,
-                "body": raw_text[:2000],
-                "url": url_raw,
-                "method": method,
-            }
-    except Exception as exc:
-        raise AppError(f"HTTP request failed: {exc}", status_code=502) from exc
+        await check_url(url)
+        async with (
+            safe_client(timeout) as client,
+            client.stream(method, url, headers=headers, content=body) as resp,
+        ):
+            text, truncated = await read_limited(resp)
+            status = resp.status_code
+    except SSRFProtectionError as exc:
+        raise _permanent(exc.message) from exc
+    except httpx.TimeoutException as exc:
+        raise RuntimeError(f"No response within {timeout:g} seconds") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"HTTP request failed: {type(exc).__name__}") from exc
+    # Never echo request headers: they can hold the credential.
+    return {
+        "status_code": status, "success": 200 <= status < 300, "body": text[:2000],
+        "truncated": truncated or len(text) > 2000, "url": url, "method": method,
+    }  # fmt: skip
 
 
 ACTIONS = {

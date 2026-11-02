@@ -1,6 +1,6 @@
 # Development status
 
-_Last updated: 2026-11-02 — end of M7._
+_Last updated: 2026-11-03 — end of M7, after the M6/M7 review._
 
 ## Working now (implemented, tested, verified in the browser)
 
@@ -70,20 +70,37 @@ _Last updated: 2026-11-02 — end of M7._
 | Disaster Recovery & Backup | Cross-platform automated PostgreSQL backup scripts (`scripts/backup.sh`, `scripts/backup.ps1`) using custom-format compression (`pg_dump -Fc`), SHA-256 checksum generation, and rolling 7-day retention pruning; verified restore scripts (`scripts/restore.sh`, `scripts/restore.ps1`) terminating active connections, executing `pg_restore`, and re-running `sync-rbac`; complete runbook with RPO (<24h) and RTO (<30m) targets in `docs/DISASTER_RECOVERY.md` |
 | Load Testing & Benchmarking | High-concurrency async load testing benchmark (`backend/tests/load/load_test.py`) measuring RPS and p50/p95/p99 response latency across health probes, Prometheus metrics, and authenticated API routes |
 
-## Test results (actually executed 2026-11-02)
-- Backend: `uv run pytest` → **103 passed** (M7: 4 new tests in `test_hardening.py` covering Prometheus metrics endpoint, production security headers, Redis-backed account lockout, and production environment startup validation). M6 baseline: 99 passed; M5 baseline: 81 passed; M4 baseline: 62 passed.
+### M6/M7 review fixes (2026-11-03)
+| Area | What was wrong → what it does now |
+|---|---|
+| Monthly limits | Runs and messages were never blocked (wrong limit keys, and a counter check that only worked on a month's first use) → one conditional SQL update checks and counts atomically |
+| Plan changes | `POST /plans/change` upgraded to any paid plan for free → only free plans self-service; paid plans need a completed checkout or a Super Admin |
+| Test checkout | Redirected back but never changed the plan → signed, expiring, organization-bound session redeemed by the Billing page (test mode only; refused in production) |
+| Production secrets | Public default credentials key and billing webhook secret were accepted (forged webhooks could upgrade any org) → startup refuses them; `BILLING_TEST_MODE` and `OUTBOUND_ALLOW_PRIVATE_NETWORKS` must be off; `.env.production.example` added |
+| Outgoing webhooks | Never fired for real events (only "ping") → message received/sent, contact created, lead stage changed and workflow run completed/failed are delivered through Temporal with 6 attempts and backoff; failure counter is atomic |
+| HTTP request step | Credentials were sent as `Bearer ('bearer', '…')`; errors crashed with a TypeError; whole responses were read into memory; credential failures were ignored → fixed; credential picker in the builder; publish checks the credential exists |
+| SSRF | Checked DNS only before connecting (rebinding), missed IPv4-mapped IPv6 and carrier-grade NAT, blocked the event loop → only globally routable addresses, checked again on the IP actually dialled |
+| Admin health | Gateway always "unavailable", storage always "ok" without checking → both really checked (found and fixed blank local storage credentials breaking uploads) |
+| Ingress | nginx live-updates rule matched a path that doesn't exist; `/metrics` was public → fixed; metrics only inside the compose network |
+| Landing page | Unbacked claims ("99.98% uptime", "↓68%", "live telemetry", Meta API "swappable") → labelled as an example tour; claims removed |
+
+## Test results (actually executed 2026-11-03)
+- Backend: `uv run pytest` → **107 passed**. The review replaced mocked integration tests with real ones: a local HTTP receiver, real inbound events and Temporal deliveries (signatures, retry, auto-disable), the HTTP step with a saved credential, SSRF cases, monthly limits, checkout forgery/cross-org/open-redirect, production secret guards, and super-admin scoping of ordinary screens. Earlier: M7 103 (as reported), M5 81, M4 62.
 - Gateway: `npm test` → **25 passed**.
 - Frontend: `npm test` → **21 passed** (4 tests in `LandingPage.test.tsx` verifying hero, interactive studio tabs, monthly/yearly pricing toggle, and FAQ accordion); `npm run typecheck` 0 errors; `npm run build` passes cleanly with per-route code splitting for landing, billing, integrations, admin, schedules, templates, and analytics.
 
 ## Not built yet
-AI track (deferred by product owner until application completion).
+- AI track (deferred by product owner until application completion).
+- A live payment provider (Stripe or Razorpay): only the test-mode provider exists, so paid plans cannot be sold yet.
+- Super Admin user management (search users, disable accounts, revoke sessions, login history).
 
 ## Known limitations
 - Real WhatsApp linking needs a phone scan — please test with a spare number (see WHATSAPP_CONNECTOR.md risks).
 - Live updates use SSE; behind proxies that buffer responses, configure no buffering for `/events/stream` (nginx: `X-Accel-Buffering: no` is sent).
 - Stickers, locations and contact cards are stored as type only; voice notes and media over 16 MB arrive without the file.
 - Lead pipeline stages are fixed (no per-organization pipelines yet). Drag and drop needs a pointer; keyboard users change the stage in the lead dialog.
-- The backend uses the MinIO root credentials locally; production should use a bucket-scoped access key (`S3_ACCESS_KEY`/`S3_SECRET_KEY`).
+- Locally, blank `S3_ACCESS_KEY`/`S3_SECRET_KEY` fall back to the MinIO root login; production should use a bucket-scoped key.
+- Account lockout is per email address, so anyone can lock a known user out for 15 minutes with 5 wrong passwords (a common trade-off; per-IP limits apply too).
 - WhatsApp session data is protected by folder isolation, not encryption at rest (see WHATSAPP_CONNECTOR.md).
 - `npm audit` reports a high-severity issue in `basic-ftp`, pulled in by puppeteer's proxy support; the gateway never uses FTP.
 - Workflows are acyclic (no loops) and branches don't re-join in parallel; the builder is not usable at phone width (the list, Execution Logs, Schedules, Templates, Analytics, Integrations, and Billing are).

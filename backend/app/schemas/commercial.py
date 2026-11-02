@@ -59,7 +59,12 @@ class ChangePlanIn(BaseModel):
 
 class CheckoutIn(BaseModel):
     plan_key: str
+    billing_interval: Literal["monthly", "yearly"] = "monthly"
     return_url: str = Field(min_length=1, max_length=1000)
+
+
+class CheckoutConfirmIn(BaseModel):
+    session_id: str = Field(min_length=10, max_length=300)
 
 
 class PortalIn(BaseModel):

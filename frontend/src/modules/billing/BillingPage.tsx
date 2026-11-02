@@ -10,7 +10,8 @@ import {
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,28 @@ export function BillingPage() {
   const queryClient = useQueryClient();
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [params, setParams] = useSearchParams();
+
+  // Returning from a (test-mode) checkout: redeem it once, then tidy the address bar.
+  const checkoutSession = params.get("checkout_session");
+  const redeemed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!checkoutSession || redeemed.current === checkoutSession) return;
+    redeemed.current = checkoutSession;
+    billingApi
+      .confirmTestCheckout(org.id, checkoutSession)
+      .then((sub) => {
+        toast.success(`You're now on the ${sub.plan_name} plan`);
+        void queryClient.invalidateQueries({ queryKey: orgKeys.scoped(org.id, "plans-usage") });
+        void queryClient.invalidateQueries({ queryKey: orgKeys.scoped(org.id, "invoices") });
+      })
+      .catch((err: unknown) => toast.error(errorMessage(err)))
+      .finally(() => {
+        const next = new URLSearchParams(params);
+        next.delete("checkout_session");
+        setParams(next, { replace: true });
+      });
+  }, [checkoutSession, org.id, params, queryClient, setParams]);
 
   const usageQuery = useQuery({
     queryKey: orgKeys.scoped(org.id, "plans-usage"),
@@ -67,7 +90,8 @@ export function BillingPage() {
     mutationFn: (planKey: string) =>
       billingApi.createCheckout(org.id, {
         plan_key: planKey,
-        return_url: window.location.href,
+        billing_interval: billingInterval,
+        return_url: window.location.origin + window.location.pathname,
       }),
     onSuccess: (res) => {
       if (res.checkout_url) {
@@ -176,7 +200,7 @@ export function BillingPage() {
             </div>
           }
           description={
-            currentSub?.trial_end ? (
+            currentSub?.status === "trialing" ? (
               <span className="flex items-center gap-1.5 text-warning font-medium">
                 <Clock className="size-3.5" />
                 {usage?.trial_days_remaining !== null && usage?.trial_days_remaining !== undefined

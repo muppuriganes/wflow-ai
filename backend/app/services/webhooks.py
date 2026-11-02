@@ -6,18 +6,25 @@ import json
 import secrets
 import time
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import NotFoundError
-from app.core.ssrf import SSRFProtectionError, validate_url_ssrf_safe
+from app.core.config import get_settings
+from app.core.errors import AppError, NotFoundError
+from app.core.logging import get_logger
+from app.core.ssrf import SSRFProtectionError, check_url, read_limited, safe_client
+from app.database.session import SessionFactory, set_rls_context
 from app.models.commercial import WebhookDelivery, WebhookEndpoint
 from app.schemas.commercial import WebhookCreateIn, WebhookUpdateIn
 from app.services.audit import record_audit
 from app.services.organizations import OrgContext
+
+log = get_logger("services.webhooks")
+MAX_CONSECUTIVE_FAILURES = 10
 
 
 def sign_payload(secret: str, timestamp: int, body_str: str) -> str:
@@ -25,6 +32,71 @@ def sign_payload(secret: str, timestamp: int, body_str: str) -> str:
     data = f"{timestamp}.{body_str}".encode()
     sig = hmac.new(secret.encode("utf-8"), data, hashlib.sha256).hexdigest()
     return f"sha256={sig}"
+
+
+# Events an endpoint can subscribe to (and where each is emitted).
+EVENT_TYPES = (
+    "message.received",  # workers/channel_events
+    "message.sent",  # services/messaging.deliver
+    "contact.created",  # services/crm, workers/channel_events
+    "lead.stage_changed",  # services/crm.update_lead
+    "workflow.run.completed",  # workflow_engine/activities.set_run_state
+    "workflow.run.failed",
+)
+
+
+def _check_events(events: list[str]) -> list[str]:
+    unknown = sorted(set(events) - set(EVENT_TYPES))
+    if unknown:
+        raise AppError(f"Unknown webhook event(s): {', '.join(unknown)}", code="invalid_events")
+    return sorted(set(events))
+
+
+async def emit(org_id: uuid.UUID, event_type: str, data: dict[str, Any]) -> None:
+    """Queues `event_type` for every active endpoint of the organization subscribed to it.
+
+    Called after the change is committed. Delivery is durable (Temporal retries with backoff) and
+    logged per attempt. This never raises: an outgoing webhook must not break the action that caused
+    it; if queueing fails, a failed delivery is logged so the customer can see it and redeliver."""
+    from app.workflow_engine import client as engine
+    from app.workflow_engine.types import WebhookDeliveryInput
+
+    try:
+        async with SessionFactory() as db:
+            await set_rls_context(db, user_id=None, org_id=org_id)
+            endpoint_ids = (
+                await db.scalars(
+                    select(WebhookEndpoint.id).where(
+                        WebhookEndpoint.organization_id == org_id,
+                        WebhookEndpoint.is_active.is_(True),
+                        WebhookEndpoint.events.contains([event_type]),
+                    )
+                )
+            ).all()
+            if not endpoint_ids:
+                return
+            event = {
+                "id": f"evt_{uuid.uuid4().hex}",
+                "type": event_type,
+                "created_at": datetime.now(UTC).isoformat(),
+                "organization_id": str(org_id),
+                "data": data,
+            }
+            scale = get_settings().workflow_time_scale
+            for endpoint_id in endpoint_ids:
+                try:
+                    await engine.start_webhook_delivery(
+                        WebhookDeliveryInput(str(org_id), str(endpoint_id), event, scale)
+                    )
+                except Exception as exc:
+                    db.add(WebhookDelivery(
+                        organization_id=org_id, webhook_id=endpoint_id, event_type=event_type, event_id=event["id"],
+                        payload=event, duration_ms=0, attempt=0, success=False,
+                        error=f"Couldn't queue the delivery: {exc}"[:500],
+                    ))  # fmt: skip
+            await db.commit()
+    except Exception:
+        log.exception("webhook_emit_failed", org_id=str(org_id), event_type=event_type)
 
 
 async def create_webhook(
@@ -36,8 +108,7 @@ async def create_webhook(
     ctx.require("integrations.manage")
     ctx.require_not_suspended()
 
-    # SSRF protection
-    validate_url_ssrf_safe(data.target_url)
+    await check_url(data.target_url)
 
     secret_key = f"whsec_{secrets.token_urlsafe(32)}"
     endpoint = WebhookEndpoint(
@@ -45,7 +116,7 @@ async def create_webhook(
         name=data.name,
         target_url=data.target_url,
         secret_key=secret_key,
-        events=data.events,
+        events=_check_events(data.events),
         is_active=data.is_active,
         consecutive_failures=0,
     )
@@ -103,14 +174,14 @@ async def update_webhook(
     endpoint = await get_webhook(db, ctx, webhook_id)
 
     if data.target_url is not None:
-        validate_url_ssrf_safe(data.target_url)
+        await check_url(data.target_url)
         endpoint.target_url = data.target_url
 
     if data.name is not None:
         endpoint.name = data.name
 
     if data.events is not None:
-        endpoint.events = data.events
+        endpoint.events = _check_events(data.events)
 
     if data.is_active is not None:
         endpoint.is_active = data.is_active
@@ -198,9 +269,9 @@ async def deliver_webhook(
         await db.flush()
         return delivery
 
-    # Validate target url again
+    # The address may have changed since it was saved (and is checked again on connect).
     try:
-        validate_url_ssrf_safe(webhook.target_url)
+        await check_url(webhook.target_url)
     except SSRFProtectionError as exc:
         delivery = WebhookDelivery(
             organization_id=webhook.organization_id,
@@ -237,16 +308,19 @@ async def deliver_webhook(
     success = False
 
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
-            resp = await client.post(webhook.target_url, content=body_str, headers=headers)
+        async with (
+            safe_client(timeout=10.0) as client,
+            client.stream("POST", webhook.target_url, content=body_str, headers=headers) as resp,
+        ):
             status_code = resp.status_code
-            response_body_text = resp.text[:1500]
+            response_body_text = (await read_limited(resp, 4096))[0][:1500]
             success = 200 <= status_code < 300
             if not success:
                 error_msg = f"HTTP status {status_code}"
-    except Exception as exc:
-        error_msg = str(exc)
-        success = False
+    except SSRFProtectionError as exc:
+        error_msg = f"SSRF violation: {exc.message}"
+    except httpx.HTTPError as exc:
+        error_msg = f"{type(exc).__name__}: {exc}"[:500] or type(exc).__name__
 
     duration_ms = int((time.perf_counter() - start_time) * 1000)
 
@@ -265,16 +339,22 @@ async def deliver_webhook(
     )
     db.add(delivery)
 
-    if success:
-        webhook.consecutive_failures = 0
-        webhook.disabled_reason = None
-    else:
-        webhook.consecutive_failures += 1
-        if webhook.consecutive_failures >= 10:
-            webhook.is_active = False
-            webhook.disabled_reason = "Auto-disabled after 10 consecutive delivery failures"
-
+    # Atomic, because parallel deliveries to the same endpoint update the same counter.
     await db.flush()
+    failures = await db.scalar(
+        update(WebhookEndpoint)
+        .where(WebhookEndpoint.id == webhook.id)
+        .values(consecutive_failures=0 if success else WebhookEndpoint.consecutive_failures + 1)
+        .returning(WebhookEndpoint.consecutive_failures)
+    )
+    if not success and (failures or 0) >= MAX_CONSECUTIVE_FAILURES:
+        await db.execute(
+            update(WebhookEndpoint)
+            .where(WebhookEndpoint.id == webhook.id, WebhookEndpoint.is_active.is_(True))
+            .values(is_active=False,
+                    disabled_reason=f"Auto-disabled after {MAX_CONSECUTIVE_FAILURES} consecutive delivery failures")
+        )  # fmt: skip
+    await db.refresh(webhook)
     return delivery
 
 

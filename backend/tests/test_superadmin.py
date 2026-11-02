@@ -1,5 +1,6 @@
 """Tests for Super Admin Console: cross-tenant management, plan override, suspension, and health checks."""
 
+import json
 import uuid
 
 import pytest
@@ -138,3 +139,46 @@ async def test_superadmin_system_health(client: AsyncClient) -> None:
     assert data["services"]["database"]["status"] == "ok"
     assert "redis" in data["services"]
     assert data["services"]["redis"]["status"] == "ok"
+
+
+async def test_superadmin_sees_only_own_org_in_normal_screens(client: AsyncClient, gateway: object) -> None:
+    """The super-admin RLS policies widen what the console can read. Ordinary screens must still be
+    scoped to the organization in the URL, or a super admin's own workspace would show other
+    companies' data."""
+    from tests.test_channels import connected
+    from tests.test_workflows import chain, node
+
+    other = await register(client, email="sa-other@example.com", org_name="Other Co")
+    other_base = f"/api/v1/organizations/{other.org_id}"
+    wf = (await client.post(f"{other_base}/workflows", headers=other.headers, json={"name": "Secret flow",
+          "definition": chain(node("t", "trigger.manual"), node("s", "logic.stop"))})).json()  # fmt: skip
+    await connected(other, gateway)  # type: ignore[arg-type]
+
+    admin = await register(client, email="sa-scope@example.com", org_name="Platform Team")
+    async with SessionFactory() as db:
+        await set_rls_context(db, user_id=None, org_id=None)
+        await db.execute(update(User).where(User.id == uuid.UUID(admin.user_id)).values(is_superadmin=True))
+        await db.commit()
+    base = f"/api/v1/organizations/{admin.org_id}"
+    for path in (
+        "/workflows",
+        "/connections",
+        "/members",
+        "/schedules",
+        "/workflow-runs",
+        "/conversations?view=all",
+    ):
+        res = await client.get(base + path, headers=admin.headers)
+        assert res.status_code == 200, (path, res.text)
+        body = res.json()
+        items = body["items"] if isinstance(body, dict) and "items" in body else body
+        names = json.dumps(items)
+        assert "Secret flow" not in names and other.org_id not in names, path
+        if path == "/members":
+            assert [m["email"] for m in items] == ["sa-scope@example.com"]
+    assert (await client.get(f"{base}/workflows/{wf['id']}", headers=admin.headers)).status_code == 404
+    mine = (await client.get("/api/v1/organizations", headers=admin.headers)).json()
+    assert [o["name"] for o in mine] == ["Platform Team"]
+    # The console itself does see every organization.
+    console = (await client.get("/api/v1/admin/organizations", headers=admin.headers)).json()
+    assert "Other Co" in json.dumps(console)

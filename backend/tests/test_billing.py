@@ -22,33 +22,64 @@ def generate_stripe_signature(payload_str: str, secret: str | None = None) -> st
 
 
 @pytest.mark.asyncio
-async def test_billing_checkout_and_portal(client: AsyncClient) -> None:
+async def test_billing_checkout_and_portal(client: AsyncClient, make_client: object) -> None:
+    """Test-mode checkout: the signed session from checkout upgrades the plan once it is redeemed."""
+    from urllib.parse import parse_qs, urlparse
+
     a = await register(client, email="billing_owner@example.com")
-    org_id = a.org_id
-    headers = a.headers
+    base = f"/api/v1/organizations/{a.org_id}/billing"
+    app_url = get_settings().cors_origin_list[0] + "/billing"
 
-    # 1. Create checkout session
-    res = await client.post(
-        f"/api/v1/organizations/{org_id}/billing/checkout",
-        headers=headers,
-        json={"plan_key": "business", "return_url": "https://app.wflow.test/billing"},
-    )
+    evil = await client.post(f"{base}/checkout", headers=a.headers,
+                             json={"plan_key": "business", "return_url": "https://evil.example/phish"})  # fmt: skip
+    assert evil.status_code == 400 and evil.json()["error"]["code"] == "invalid_return_url"
+
+    res = await client.post(f"{base}/checkout", headers=a.headers,
+                            json={"plan_key": "business", "billing_interval": "yearly", "return_url": app_url})  # fmt: skip
     assert res.status_code == 200, res.text
-    data = res.json()
-    assert "checkout_url" in data
-    assert "cs_test_" in data["checkout_url"]
-    assert "plan=business" in data["checkout_url"]
+    url = res.json()["checkout_url"]
+    assert url.startswith(app_url)
+    session = parse_qs(urlparse(url).query)["checkout_session"][0]
 
-    # 2. Create customer portal session
-    res = await client.post(
-        f"/api/v1/organizations/{org_id}/billing/portal",
-        headers=headers,
-        json={"return_url": "https://app.wflow.test/billing"},
-    )
-    assert res.status_code == 200
-    pdata = res.json()
-    assert "portal_url" in pdata
-    assert "bps_test_" in pdata["portal_url"]
+    # A forged or tampered session is refused, and so is one issued to another organization.
+    forged = session.replace("business", "growth")
+    assert (await client.post(f"{base}/checkout/confirm", headers=a.headers,
+                              json={"session_id": forged})).status_code == 400  # fmt: skip
+    other_client: AsyncClient = make_client()  # type: ignore[operator]
+    b = await register(other_client, email="billing_other@example.com", org_name="Other Billing")
+    stolen = await other_client.post(f"/api/v1/organizations/{b.org_id}/billing/checkout/confirm",
+                                     headers=b.headers, json={"session_id": session})  # fmt: skip
+    assert stolen.status_code == 400
+    await other_client.aclose()
+
+    done = await client.post(f"{base}/checkout/confirm", headers=a.headers, json={"session_id": session})
+    assert done.status_code == 200, done.text
+    assert done.json()["plan_key"] == "business" and done.json()["billing_interval"] == "yearly"
+    assert done.json()["status"] == "active" and done.json()["trial_end"] is None  # paying ends the trial
+    again = await client.post(f"{base}/checkout/confirm", headers=a.headers, json={"session_id": session})
+    assert again.status_code == 200  # reloading the page is harmless
+    invoices = (await client.get(f"{base}/invoices", headers=a.headers)).json()
+    assert len(invoices) == 1 and invoices[0]["amount_cents"] == 199000
+
+    portal = await client.post(f"{base}/portal", headers=a.headers, json={"return_url": app_url})
+    assert portal.status_code == 200 and "bps_test_" in portal.json()["portal_url"]
+
+
+def test_production_refuses_public_default_secrets() -> None:
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+
+    good = {
+        "environment": "production", "jwt_secret": "x" * 40, "cookie_secure": True, "internal_api_token": "y" * 40,
+        "simulator_enabled": False, "workflow_time_scale": 1.0, "credentials_encryption_key": "k" * 40,
+        "stripe_webhook_secret": "whsec_real_secret", "billing_test_mode": False,
+    }  # fmt: skip
+    Settings(**good)  # type: ignore[arg-type]
+    for field, bad in (("credentials_encryption_key", "wflow-credentials-encryption-key-32b!"),
+                       ("stripe_webhook_secret", "whsec_mock_wflow"), ("billing_test_mode", True)):  # fmt: skip
+        with pytest.raises(ValidationError, match=field.upper()):
+            Settings(**{**good, field: bad})  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio

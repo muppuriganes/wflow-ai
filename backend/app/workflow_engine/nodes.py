@@ -12,7 +12,17 @@ from datetime import time
 from typing import Any, Literal
 
 FieldType = Literal[
-    "text", "textarea", "number", "select", "multiselect", "keywords", "tag", "user", "connection", "time"
+    "text",
+    "textarea",
+    "number",
+    "select",
+    "multiselect",
+    "keywords",
+    "tag",
+    "user",
+    "connection",
+    "time",
+    "credential",
 ]
 
 
@@ -204,8 +214,9 @@ NODE_TYPES: tuple[NodeDef, ...] = (
                      help="Optional JSON dictionary of headers."),
             FieldDef("body", "Request Body", "textarea", max_length=10000, templated=True,
                      help="Request payload (text or JSON)."),
-            FieldDef("credential_id", "Credential ID", "text", max_length=50,
-                     help="Optional stored credential UUID to inject as Bearer token."),
+            FieldDef("credential_id", "Credential", "credential",
+                     help="Optional saved credential (Integrations → Credentials). Bearer and API-key "
+                          "credentials are sent as Authorization: Bearer … and X-API-Key, basic as Basic auth."),
             FieldDef("timeout_seconds", "Timeout (seconds)", "number", min=1, max=30, default=10),
         ),
         side_effects=True,
@@ -271,7 +282,7 @@ def validate_config(node: NodeDef, config: dict[str, Any]) -> dict[str, Any]:
                 raise ConfigError(f"{f.label} is required")
             continue
         match f.type:
-            case "text" | "textarea" | "tag" | "user" | "connection":
+            case "text" | "textarea" | "tag" | "user" | "connection" | "credential":
                 if not isinstance(value, str):
                     raise ConfigError(f"{f.label} must be text")
                 value = value.strip()

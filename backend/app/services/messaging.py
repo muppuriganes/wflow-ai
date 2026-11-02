@@ -14,7 +14,7 @@ from app.core.rate_limit import enforce_rate_limit
 from app.models import ChannelConnection, Contact, Conversation, Message, MessageAttachment
 from app.models.identity import Organization
 from app.schemas.inbox import AttachmentOut, MessageOut
-from app.services import plans
+from app.services import plans, webhooks
 from app.services.files import validate_upload
 from app.services.gateway import get_gateway
 from app.services.inbox import get_conversation_row, users_by_id
@@ -222,6 +222,10 @@ async def deliver(
         conv.resolved_at = None
     await db.commit()
     await publish(org_id, "message.created", conversation_id=conv.id)
+    await webhooks.emit(org_id, "message.sent", {
+        "message_id": str(msg.id), "conversation_id": str(conv.id), "contact_id": str(conv.contact_id),
+        "text": text, "automated": automated, "status": msg.status,
+    })  # fmt: skip
     return (await serialize_messages(db, [msg]))[0]
 
 

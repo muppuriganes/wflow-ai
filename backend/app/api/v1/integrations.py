@@ -5,7 +5,8 @@ import uuid
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_org_context
+from app.api.deps import get_org_context
+from app.database.session import get_db
 from app.schemas.commercial import (
     CredentialCreateIn,
     CredentialOut,

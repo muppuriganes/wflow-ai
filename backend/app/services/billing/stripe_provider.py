@@ -22,6 +22,28 @@ from app.services.plans import get_or_create_subscription, get_plan_by_key
 log = get_logger("billing.stripe")
 
 
+TEST_CHECKOUT_TTL_SECONDS = 1800
+
+
+def sign_test_checkout(org_id: uuid.UUID, plan_key: str, interval: str = "monthly") -> str:
+    body = f"{org_id}:{plan_key}:{interval}:{int(time.time()) + TEST_CHECKOUT_TTL_SECONDS}"
+    sig = hmac.new(get_settings().jwt_secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+    return f"cs_test.{body}.{sig}"
+
+
+def read_test_checkout(session_id: str, org_id: uuid.UUID) -> tuple[str, str] | None:
+    """Returns (plan key, interval) if the token is genuine, unexpired and for this organization."""
+    try:
+        _prefix, body, sig = session_id.split(".")
+        token_org, plan_key, interval, expires = body.split(":")
+    except ValueError:
+        return None
+    expected = hmac.new(get_settings().jwt_secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected) or token_org != str(org_id) or int(expires) < time.time():
+        return None
+    return plan_key, interval
+
+
 class StripeTestBillingProvider(BillingProvider):
     """Stripe billing provider operating strictly in Test Mode (never touches real money)."""
 
@@ -35,18 +57,15 @@ class StripeTestBillingProvider(BillingProvider):
         user_email: str,
         plan_key: str,
         return_url: str,
+        interval: str = "monthly",
     ) -> str:
-        """Generates a test checkout URL with mock session ID."""
+        """Test mode: no payment page exists, so the session id is a signed, short-lived token that
+        the Billing page redeems (see billing_service.confirm_test_checkout)."""
         plan = await get_plan_by_key(db, plan_key)
-        session_id = f"cs_test_{uuid.uuid4().hex[:24]}"
-        log.info(
-            "stripe_test_checkout_created",
-            org_id=str(org_id),
-            plan=plan.key,
-            session_id=session_id,
-        )
+        session_id = sign_test_checkout(org_id, plan.key, interval)
+        log.info("stripe_test_checkout_created", org_id=str(org_id), plan=plan.key)
         sep = "&" if "?" in return_url else "?"
-        return f"{return_url}{sep}session_id={session_id}&plan={plan.key}"
+        return f"{return_url}{sep}checkout_session={session_id}"
 
     async def create_customer_portal_session(
         self,
@@ -62,7 +81,7 @@ class StripeTestBillingProvider(BillingProvider):
 
     def verify_webhook_signature(self, payload_bytes: bytes, signature_header: str) -> dict[str, Any]:
         """Validates incoming Stripe signature header (t=...,v1=...) via HMAC-SHA256."""
-        secret = self.settings.stripe_webhook_secret or "whsec_test_secret"
+        secret = self.settings.stripe_webhook_secret
 
         items = {}
         for part in signature_header.split(","):
@@ -100,7 +119,7 @@ class StripeTestBillingProvider(BillingProvider):
         event_id = event_dict.get("id")
         event_type = event_dict.get("type")
         if not event_id or not event_type:
-            log.warning("stripe_event_missing_fields", event=event_dict)
+            log.warning("stripe_event_missing_fields", event_keys=sorted(event_dict))
             return
 
         # Deduplication check
@@ -134,6 +153,7 @@ class StripeTestBillingProvider(BillingProvider):
                     sub.plan = plan
 
                 sub.status = "active"
+                sub.trial_end = None
                 sub.provider_customer_id = data_obj.get("customer")
                 sub.provider_subscription_id = data_obj.get("subscription")
                 sub.cancel_at_period_end = False

@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 from httpx import AsyncClient
@@ -120,14 +121,49 @@ async def test_atomic_concurrent_usage_counting(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_change_plan(client: AsyncClient) -> None:
+    """Self-service changes only reach free plans; paid plans need a completed checkout."""
     a = await register(client, "owner-plans-change@example.com")
-    res = await client.post(
-        f"/api/v1/organizations/{a.org_id}/plans/change",
-        headers=a.headers,
-        json={"plan_key": "business", "billing_interval": "yearly"},
+    url = f"/api/v1/organizations/{a.org_id}/plans/change"
+    paid = await client.post(
+        url, headers=a.headers, json={"plan_key": "business", "billing_interval": "yearly"}
     )
-    assert res.status_code == 200
-    data = res.json()
-    assert data["plan"]["key"] == "business"
-    assert data["subscription"]["billing_interval"] == "yearly"
-    assert data["plan"]["limits"]["max_members"] == 50
+    assert paid.status_code == 402  # used to upgrade for free
+    usage = (await client.get(f"/api/v1/organizations/{a.org_id}/plans/usage", headers=a.headers)).json()
+    assert usage["plan"]["key"] == "growth"  # still the trial plan
+    free = await client.post(url, headers=a.headers, json={"plan_key": "free"})
+    assert free.status_code == 200 and free.json()["plan"]["key"] == "free"
+
+
+async def test_monthly_limits_are_enforced(client: AsyncClient, admin_engine: Any) -> None:
+    """Once a month's quota is used up, every further run or message is refused."""
+    import uuid
+
+    from sqlalchemy import update
+
+    from app.core.errors import PlanLimitExceededError
+    from app.database.session import SessionFactory, set_rls_context
+    from app.models import Plan
+    from app.services import plans
+
+    a = await register(client, "limit-monthly@example.com")
+    org = uuid.UUID(a.org_id)
+    async with admin_engine.begin() as conn:  # a tiny limit on the trial plan, restored below
+        await conn.execute(update(Plan).where(Plan.key == "growth").values(
+            limits=Plan.limits.op("||")({"max_monthly_messages": 2})))  # fmt: skip
+    try:
+        async with SessionFactory() as db:
+            await set_rls_context(db, user_id=None, org_id=org)
+            assert [await plans.increment_monthly_usage(db, org, "outbound_messages") for _ in range(2)] == [
+                1,
+                2,
+            ]
+            for _ in range(3):
+                with pytest.raises(PlanLimitExceededError) as exc:
+                    await plans.increment_monthly_usage(db, org, "outbound_messages")
+                assert exc.value.details == {"metric": "max_monthly_messages", "limit": 2, "used": 2}
+            assert await plans.increment_monthly_usage(db, org, "workflow_runs") == 1  # separate counter
+            await db.commit()
+    finally:
+        async with admin_engine.begin() as conn:
+            await conn.execute(update(Plan).where(Plan.key == "growth").values(
+                limits=Plan.limits.op("||")({"max_monthly_messages": 25000})))  # fmt: skip

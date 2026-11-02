@@ -77,3 +77,49 @@ async def resume_subscription(
     )
     await db.flush()
     return sub
+
+
+async def confirm_test_checkout(db: AsyncSession, ctx: OrgContext, session_id: str) -> Subscription:
+    """Test mode only: completes a checkout without a payment, as the provider's
+    `checkout.session.completed` webhook would, and records a test invoice."""
+    import uuid
+    from datetime import UTC, datetime, timedelta
+
+    from app.core.config import get_settings
+    from app.core.errors import AppError
+    from app.services.billing.stripe_provider import read_test_checkout
+    from app.services.plans import get_plan_by_key
+
+    ctx.require("billing.manage")
+    if not get_settings().billing_test_mode:
+        raise AppError(
+            "Test checkouts are disabled when a live payment provider is configured", code="not_test_mode"
+        )
+    token = read_test_checkout(session_id, ctx.org_id)
+    if token is None:
+        raise AppError(
+            "This checkout link is invalid or has expired. Start the checkout again.", code="checkout_invalid"
+        )
+    plan_key, interval = token
+    sub = await get_or_create_subscription(db, ctx.org_id)
+    plan = await get_plan_by_key(db, plan_key)
+    if sub.plan_id == plan.id and sub.status == "active" and sub.billing_interval == interval:
+        return sub  # already redeemed (e.g. page reloaded)
+    now = datetime.now(UTC)
+    sub.plan_id, sub.plan, sub.status, sub.cancel_at_period_end = plan.id, plan, "active", False
+    sub.billing_interval = interval
+    sub.trial_end = None
+    sub.current_period_start = now
+    sub.current_period_end = now + (
+        timedelta(days=365) if sub.billing_interval == "yearly" else timedelta(days=30)
+    )
+    amount = plan.price_cents_yearly if sub.billing_interval == "yearly" else plan.price_cents_monthly
+    db.add(InvoiceRecord(
+        organization_id=ctx.org_id, subscription_id=sub.id, invoice_number=f"TEST-{now:%Y%m%d}-{uuid.uuid4().hex[:8].upper()}",
+        amount_cents=amount, currency=plan.currency, status="paid", period_start=now,
+        period_end=sub.current_period_end, provider_invoice_id=f"test_{session_id[-16:]}",
+    ))  # fmt: skip
+    record_audit(db, "billing.test_checkout_completed", organization_id=ctx.org_id, actor_user_id=ctx.user.id,
+                 target_type="subscription", target_id=sub.id, details={"plan": plan.key, "test_mode": True})  # fmt: skip
+    await db.flush()
+    return sub

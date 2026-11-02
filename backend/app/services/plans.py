@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Literal
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, PlanLimitExceededError
@@ -277,84 +277,76 @@ async def check_resource_limit(
         )
 
 
+# Plan limit key and usage_counters column for each monthly metric.
+MONTHLY_METRICS = {
+    "workflow_runs": ("max_monthly_runs", "workflow_runs_count"),
+    "outbound_messages": ("max_monthly_messages", "outbound_messages_count"),
+}
+
+
 async def increment_monthly_usage(
     db: AsyncSession,
     org_id: uuid.UUID,
     metric: Literal["workflow_runs", "outbound_messages"],
     delta: int = 1,
 ) -> int:
-    """Atomically increments monthly usage for workflow runs or outbound messages.
+    """Atomically adds `delta` to this month's usage, refusing to go over the plan limit.
 
-    Guarantees concurrency safety via atomic conditional SQL execution.
-    Raises PlanLimitExceededError if the increment would exceed the plan limit.
+    A single conditional UPDATE does the check and the increment together, so concurrent
+    requests can never push the counter past the limit. Raises PlanLimitExceededError.
     """
     _sub, plan = await get_effective_plan(db, org_id)
-    limit_key = f"max_monthly_{metric}"
-    limit = plan.limits.get(limit_key, 999999)
+    limit_key, column = MONTHLY_METRICS[metric]
+    limit = int(plan.limits.get(limit_key, 999_999_999))
     ym = get_current_year_month()
-
-    runs_delta = delta if metric == "workflow_runs" else 0
-    msgs_delta = delta if metric == "outbound_messages" else 0
-
-    runs_limit = limit if metric == "workflow_runs" else 999999999
-    msgs_limit = limit if metric == "outbound_messages" else 999999999
-
-    sql = text(
-        """
-        INSERT INTO usage_counters (id, organization_id, year_month, workflow_runs_count, outbound_messages_count, created_at, updated_at)
-        VALUES (gen_random_uuid(), :org_id, :ym,
-            CASE WHEN CAST(:runs_delta AS int) <= CAST(:runs_limit AS int) THEN CAST(:runs_delta AS int) ELSE 0 END,
-            CASE WHEN CAST(:msgs_delta AS int) <= CAST(:msgs_limit AS int) THEN CAST(:msgs_delta AS int) ELSE 0 END,
-            now(), now())
-        ON CONFLICT (organization_id, year_month)
-        DO UPDATE SET
-            workflow_runs_count = CASE
-                WHEN usage_counters.workflow_runs_count + CAST(:runs_delta AS int) <= CAST(:runs_limit AS int)
-                THEN usage_counters.workflow_runs_count + CAST(:runs_delta AS int)
-                ELSE usage_counters.workflow_runs_count
-            END,
-            outbound_messages_count = CASE
-                WHEN usage_counters.outbound_messages_count + CAST(:msgs_delta AS int) <= CAST(:msgs_limit AS int)
-                THEN usage_counters.outbound_messages_count + CAST(:msgs_delta AS int)
-                ELSE usage_counters.outbound_messages_count
-            END,
-            updated_at = now()
-        RETURNING workflow_runs_count, outbound_messages_count;
-        """
+    params = {"org_id": org_id, "ym": ym, "delta": delta, "limit": limit}
+    await db.execute(
+        text(
+            "INSERT INTO usage_counters (id, organization_id, year_month, workflow_runs_count, "
+            "outbound_messages_count, created_at, updated_at) "
+            "VALUES (gen_random_uuid(), :org_id, :ym, 0, 0, now(), now()) "
+            "ON CONFLICT (organization_id, year_month) DO NOTHING"
+        ),
+        params,
     )
-
-    res = await db.execute(
-        sql,
-        {
-            "org_id": org_id,
-            "ym": ym,
-            "runs_delta": runs_delta,
-            "msgs_delta": msgs_delta,
-            "runs_limit": runs_limit,
-            "msgs_limit": msgs_limit,
-        },
+    counter = getattr(UsageCounter, column)
+    row = (UsageCounter.organization_id == org_id, UsageCounter.year_month == ym)
+    new_value = await db.scalar(
+        update(UsageCounter)
+        .where(*row, counter + delta <= limit)
+        .values({column: counter + delta, "updated_at": func.now()})
+        .returning(counter)
     )
-    row = res.fetchone()
-    if not row:
+    if new_value is None:
+        used = await db.scalar(select(counter).where(*row))
+        label = "workflow runs" if metric == "workflow_runs" else "outbound messages"
         raise PlanLimitExceededError(
-            f"Monthly {metric.replace('_', ' ')} limit reached ({limit}). Upgrade your plan to increase limits.",
+            f"Your plan's monthly limit of {limit} {label} is reached. Upgrade your plan to continue.",
             metric=limit_key,
             limit=limit,
-            used=limit,
+            used=int(used or 0),
         )
+    return int(new_value)
 
-    current_val = row[0] if metric == "workflow_runs" else row[1]
 
-    # Verify that the counter was actually incremented by delta
-    # If it wasn't, that means the CASE condition failed because it exceeded limit
-    # We query the actual current count to report exact usage
-    # Note: If this was a fresh row where delta > limit, current_val is 0.
-    if current_val < delta:
+async def change_plan_self_service(
+    db: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID, plan_key: str, interval: str
+) -> None:
+    """Customers may switch to a free plan themselves; paid plans start only after payment
+    (billing checkout and the provider's webhook) or by a Super Admin."""
+    from app.services.audit import record_audit
+
+    plan = await get_plan_by_key(db, plan_key)
+    if plan.price_cents_monthly > 0 or plan.price_cents_yearly > 0:
         raise PlanLimitExceededError(
-            f"Monthly {metric.replace('_', ' ')} limit reached ({limit}). Upgrade your plan to increase limits.",
-            metric=limit_key,
-            limit=limit,
-            used=limit,
+            "Paid plans start after checkout. Use “Select plan” on the Billing page.", metric="plan"
         )
-
-    return current_val
+    sub = await get_or_create_subscription(db, org_id)
+    previous = sub.plan_id
+    sub.plan_id, sub.plan, sub.billing_interval = plan.id, plan, interval
+    if sub.status in ("trialing", "canceled"):
+        sub.status = "active"
+        sub.trial_end = None
+    record_audit(db, "billing.plan_changed", organization_id=org_id, actor_user_id=user_id,
+                 target_type="subscription", target_id=sub.id,
+                 details={"plan": plan.key, "previous_plan_id": str(previous), "source": "self_service"})  # fmt: skip

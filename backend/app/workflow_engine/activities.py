@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 
 from app.core.logging import get_logger
 from app.database.session import SessionFactory, set_rls_context
@@ -22,7 +23,15 @@ from app.services.realtime import publish
 from app.workflow_engine import actions
 from app.workflow_engine.expressions import compare, keywords_match, render, resolve, within_business_hours
 from app.workflow_engine.nodes import REGISTRY
-from app.workflow_engine.types import ApprovalRequest, NodeInput, NodeRecord, NodeResult, RunInput, RunState
+from app.workflow_engine.types import (
+    ApprovalRequest,
+    NodeInput,
+    NodeRecord,
+    NodeResult,
+    RunInput,
+    RunState,
+    WebhookDeliveryInput,
+)
 
 log = get_logger("workflow.activities")
 
@@ -107,6 +116,15 @@ async def set_run_state(state: RunState) -> None:
             )
         await db.commit()
         await publish(run.organization_id, "run.updated", run_id=run.id)
+        if state.status in FINISHED_RUN_STATUSES and state.status != "CANCELLED" and not run.is_test:
+            from app.services import webhooks
+
+            await webhooks.emit(run.organization_id,
+                                "workflow.run.completed" if state.status == "COMPLETED" else "workflow.run.failed", {
+                "run_id": str(run.id), "workflow_id": str(run.workflow_id), "status": run.status,
+                "error": run.error, "contact_id": str(run.contact_id) if run.contact_id else None,
+                "conversation_id": str(run.conversation_id) if run.conversation_id else None,
+            })  # fmt: skip
 
 
 @activity.defn
@@ -269,6 +287,31 @@ async def dispatch_schedule_activity(inp: dict[str, Any]) -> dict[str, Any]:
     return await fire_schedule_from_activity(inp["schedule_id"], inp.get("fire_key"))
 
 
+@activity.defn
+async def deliver_webhook_event(inp: WebhookDeliveryInput) -> str:
+    """One delivery attempt, logged for the customer. Raises to let Temporal retry with backoff;
+    failures that retrying cannot fix (endpoint removed or disabled, blocked address, 4xx) stop here."""
+    from app.models import WebhookEndpoint
+    from app.services.webhooks import deliver_webhook
+
+    async with org_session(inp.organization_id) as db:
+        endpoint = await db.get(WebhookEndpoint, uuid.UUID(inp.endpoint_id))
+        if endpoint is None or not endpoint.is_active:
+            return "skipped"
+        delivery = await deliver_webhook(db, endpoint, inp.event["type"], inp.event["id"], inp.event,
+                                         attempt=activity.info().attempt)  # fmt: skip
+        await db.commit()
+        if delivery.success:
+            return "delivered"
+        status = delivery.response_status
+        permanent = (
+            not endpoint.is_active
+            or (delivery.error or "").startswith("SSRF")
+            or (status is not None and 400 <= status < 500 and status not in (408, 429))
+        )
+    raise ApplicationError(f"Webhook delivery failed: {delivery.error}", non_retryable=permanent)
+
+
 ALL_ACTIVITIES: list[Callable[..., Any]] = [
     prepare_run,
     set_run_state,
@@ -277,4 +320,5 @@ ALL_ACTIVITIES: list[Callable[..., Any]] = [
     create_approval,
     expire_approval,
     dispatch_schedule_activity,
+    deliver_webhook_event,
 ]

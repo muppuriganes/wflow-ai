@@ -3,6 +3,7 @@ import { GitBranch, type LucideIcon, Play, Timer, UserCheck, Variable, Zap } fro
 import type { BadgeTone } from "@/components/ui/badge";
 import { channelsApi } from "@/services/channels";
 import { inboxApi } from "@/services/inbox";
+import { integrationsApi } from "@/services/integrations";
 import { orgApi } from "@/services/organizations";
 import { workflowsApi } from "@/services/workflows";
 import { orgKeys } from "@/stores/organization";
@@ -76,6 +77,7 @@ export type Lookups = {
   tags: { value: string; label: string }[];
   users: { value: string; label: string }[];
   connections: { value: string; label: string }[];
+  credentials: { value: string; label: string }[];
 };
 
 /** Names for the tag / team member / WhatsApp number pickers in step settings. */
@@ -83,10 +85,17 @@ export function useLookups(orgId: string): Lookups {
   const tags = useQuery({ queryKey: orgKeys.scoped(orgId, "tags"), queryFn: () => inboxApi.tags(orgId) });
   const members = useQuery({ queryKey: orgKeys.scoped(orgId, "members"), queryFn: () => orgApi.members(orgId) });
   const connections = useQuery({ queryKey: orgKeys.scoped(orgId, "connections"), queryFn: () => channelsApi.list(orgId) });
+  const credentials = useQuery({
+    queryKey: orgKeys.scoped(orgId, "credentials"),
+    queryFn: () => integrationsApi.listCredentials(orgId),
+    // Only people who can see integrations get the list; others see the saved choice as "Unknown".
+    retry: false,
+  });
   return {
     tags: (tags.data ?? []).map((t) => ({ value: t.id, label: t.name })),
     users: (members.data ?? []).map((m) => ({ value: m.user_id, label: m.full_name || m.email })),
     connections: (connections.data ?? []).map((c) => ({ value: c.id, label: c.display_name })),
+    credentials: (credentials.data ?? []).map((c) => ({ value: c.id, label: `${c.name} (${c.type})` })),
   };
 }
 
@@ -110,6 +119,8 @@ export function summarize(def: NodeType, config: Record<string, unknown>, lookup
         return `${field.label}: ${pick(lookups.users)}`;
       case "connection":
         return `Number: ${pick(lookups.connections)}`;
+      case "credential":
+        return `Credential: ${pick(lookups.credentials)}`;
       case "number":
         if (def.type === "logic.delay") return `${String(value)} ${String(config.unit ?? "minutes")}`;
         return `${field.label}: ${String(value)}`;

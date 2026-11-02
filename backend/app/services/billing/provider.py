@@ -16,6 +16,7 @@ class BillingProvider(ABC):
         user_email: str,
         plan_key: str,
         return_url: str,
+        interval: str = "monthly",
     ) -> str:
         """Creates a checkout session and returns the redirect URL."""
 

@@ -249,7 +249,7 @@ export function LandingPage() {
             <a href="#interactive-demo" className="w-full sm:w-auto">
               <Button variant="secondary" size="lg" className="w-full sm:w-auto px-6 py-3 text-[14px] font-medium border-border-strong hover:bg-surface-muted gap-2">
                 <Play className="size-4 text-primary fill-primary/10" />
-                <span>Explore Live Product Studio</span>
+                <span>Take the product tour</span>
               </Button>
             </a>
           </div>
@@ -327,9 +327,10 @@ export function LandingPage() {
                   }`}
                 >
                   <BarChart3 className="size-3.5" />
-                  <span>Live Telemetry</span>
+                  <span>Analytics</span>
                 </button>
               </div>
+              <span className="text-[11px] text-muted">Product tour · example data</span>
 
               <div className="flex items-center gap-2">
                 <button
@@ -540,18 +541,18 @@ export function LandingPage() {
                 </div>
               )}
 
-              {/* TAB 4: LIVE TELEMETRY */}
+              {/* TAB 4: ANALYTICS (example numbers) */}
               {activeStudioTab === "analytics" && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="rounded-xl border border-border bg-surface p-4 text-center space-y-1">
                     <p className="text-xs font-medium text-muted">First Response Time</p>
                     <p className="text-3xl font-extrabold text-foreground">1.4 <span className="text-sm font-normal text-muted">min</span></p>
-                    <p className="text-[11px] text-success font-medium">↓ 68% vs unautomated manual inbox</p>
+                    <p className="text-[11px] text-muted">Measured from your real conversations</p>
                   </div>
                   <div className="rounded-xl border border-border bg-surface p-4 text-center space-y-1">
                     <p className="text-xs font-medium text-muted">Workflow Execution Success</p>
                     <p className="text-3xl font-extrabold text-primary">99.98%</p>
-                    <p className="text-[11px] text-muted">Temporal durable idempotency</p>
+                    <p className="text-[11px] text-muted">Completed vs failed runs, per workflow</p>
                   </div>
                   <div className="rounded-xl border border-border bg-surface p-4 text-center space-y-1">
                     <p className="text-xs font-medium text-muted">Total Monthly Executions</p>
@@ -591,7 +592,7 @@ export function LandingPage() {
               <ul className="text-xs text-muted space-y-1.5 pt-2">
                 <li className="flex items-center gap-2"><Check className="size-3.5 text-success" /> Isolated session folders per tenant</li>
                 <li className="flex items-center gap-2"><Check className="size-3.5 text-success" /> STOP/START customer opt-out compliance</li>
-                <li className="flex items-center gap-2"><Check className="size-3.5 text-success" /> Swappable for Meta Cloud API</li>
+                <li className="flex items-center gap-2"><Check className="size-3.5 text-success" /> Channel layer ready for Meta's official API (planned)</li>
               </ul>
             </div>
 
@@ -879,7 +880,7 @@ export function LandingPage() {
               </p>
               <div className="flex items-center gap-2 pt-2">
                 <span className="size-2 rounded-full bg-success animate-pulse" />
-                <span className="text-[11px] font-medium text-foreground">All systems operational • 99.98% Uptime</span>
+                <span className="text-[11px] font-medium text-foreground">Built for multi-tenant isolation from day one</span>
               </div>
             </div>
 

@@ -77,3 +77,13 @@ class ApprovalDecision:
 class CustomerReply:
     message_id: str
     text: str | None
+
+
+@dataclass
+class WebhookDeliveryInput:
+    """One event for one outgoing webhook endpoint (retried durably by Temporal)."""
+
+    organization_id: str
+    endpoint_id: str
+    event: dict[str, Any]
+    time_scale: float = 1.0

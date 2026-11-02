@@ -134,12 +134,19 @@ function FieldInput({
     case "select":
     case "tag":
     case "user":
-    case "connection": {
-      const options = f.type === "select" ? f.options : f.type === "tag" ? lookups.tags : f.type === "user" ? lookups.users : lookups.connections;
+    case "connection":
+    case "credential": {
+      const options = {
+        select: f.options,
+        tag: lookups.tags,
+        user: lookups.users,
+        connection: lookups.connections,
+        credential: lookups.credentials,
+      }[f.type];
       return (
         <Field label={label} hint={hint}>
           <NativeSelect value={str} disabled={disabled} onChange={(e) => onChange(e.target.value || null)}>
-            {(!f.required || !str) && <option value="">{f.type === "connection" ? "Any number" : "Choose…"}</option>}
+            {(!f.required || !str) && <option value="">{f.type === "connection" ? "Any number" : f.type === "credential" ? "None" : "Choose…"}</option>}
             {options.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}

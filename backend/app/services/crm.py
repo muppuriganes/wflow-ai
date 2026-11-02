@@ -33,6 +33,7 @@ from app.schemas.crm import (
     TaskOut,
     TaskRef,
 )
+from app.services import webhooks
 from app.services.inbox import like_pattern, tags_for_contacts, users_by_id
 from app.services.organizations import OrgContext
 from app.services.realtime import publish
@@ -284,6 +285,10 @@ async def create_contact(db: AsyncSession, ctx: OrgContext, data: dict[str, Any]
     await _record(db, ctx, contact.id, "contact.created", "Contact created")
     await db.commit()
     await publish(ctx.org_id, "contact.updated", contact_id=contact.id)
+    await webhooks.emit(ctx.org_id, "contact.created", {
+        "contact_id": str(contact.id), "name": contact.display_name, "phone": contact.phone_number,
+        "email": contact.email, "source": "crm",
+    })  # fmt: skip
     return (await _contact_out(db, [contact]))[0]
 
 
@@ -510,6 +515,7 @@ async def update_lead(
             db, ctx, "lead", changes.pop("custom_fields") or {}, lead.custom_fields
         )
     new_stage = changes.pop("stage", None)
+    stage_change: dict[str, str] | None = None
     for key, value in changes.items():
         setattr(lead, key, value)
     if new_stage and new_stage != lead.stage:
@@ -518,11 +524,18 @@ async def update_lead(
         lead.closed_at = datetime.now(UTC) if new_stage in CLOSED_STAGES else None
         if new_stage != "LOST":
             lead.lost_reason = None
+        stage_change = {"from": old, "to": new_stage}
         await _record(db, ctx, lead.contact_id, "lead.stage_changed",
                       f"{lead.title}: {old.title()} → {new_stage.title()}", lead.id, {"from": old, "to": new_stage})  # fmt: skip
     await db.commit()
     await db.refresh(lead)
     await publish(ctx.org_id, "lead.updated", lead_id=lead.id)
+    if stage_change:
+        await webhooks.emit(ctx.org_id, "lead.stage_changed", {
+            "lead_id": str(lead.id), "title": lead.title, "contact_id": str(lead.contact_id), **stage_change,
+            "value_amount": str(lead.value_amount) if lead.value_amount is not None else None,
+            "currency": lead.currency,
+        })  # fmt: skip
     return (await _lead_out(db, [lead]))[0]
 
 

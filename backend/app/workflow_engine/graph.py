@@ -157,8 +157,8 @@ def compile_definition(definition: dict[str, Any]) -> ValidationResult:
 
 
 def referenced_ids(plan: dict[str, Any]) -> dict[str, set[str]]:
-    """Tag/user/connection ids used in node settings, for existence checks at publish time."""
-    refs: dict[str, set[str]] = {"tag": set(), "user": set(), "connection": set()}
+    """Tag/user/connection/credential ids used in node settings, for existence checks at publish time."""
+    refs: dict[str, set[str]] = {"tag": set(), "user": set(), "connection": set(), "credential": set()}
     for node in plan["nodes"].values():
         node_def = REGISTRY[node["type"]]
         for f in node_def.fields:

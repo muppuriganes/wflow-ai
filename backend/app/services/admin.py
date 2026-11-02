@@ -325,16 +325,28 @@ async def check_system_health(db: AsyncSession) -> dict[str, Any]:
     except Exception as exc:
         services["temporal"] = {"status": "unavailable", "error": str(exc)}
 
-    # Storage
-    services["storage"] = {"status": "ok"}
+    # Storage: write and delete a tiny object, the same permissions uploads need
+    try:
+        from app.services.storage import get_storage
+
+        storage = get_storage()
+        await storage.put("_health/ping", b"ok", "text/plain")
+        await storage.delete("_health/ping")
+        services["storage"] = {"status": "ok"}
+    except Exception as exc:
+        services["storage"] = {"status": "error", "error": str(exc)[:200]}
 
     # Messaging Gateway
     try:
         async with httpx.AsyncClient(timeout=2.0) as http_client:
-            resp = await http_client.get(f"{get_settings().messaging_gateway_url}/health")
-            services["messaging_gateway"] = {"status": "ok" if resp.status_code == 200 else "degraded"}
-    except Exception:
-        services["messaging_gateway"] = {"status": "unavailable"}
+            resp = await http_client.get(f"{get_settings().gateway_url}/health")
+            body = resp.json() if resp.status_code == 200 else {}
+            services["messaging_gateway"] = {
+                "status": "ok" if resp.status_code == 200 else "degraded",
+                "sessions": body.get("sessions"),
+            }
+    except Exception as exc:
+        services["messaging_gateway"] = {"status": "unavailable", "error": type(exc).__name__}
 
     db_ok = services.get("database", {}).get("status") == "ok"
     redis_ok = services.get("redis", {}).get("status") == "ok"

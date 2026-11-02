@@ -306,7 +306,7 @@ export type ContactDetail = CrmContact & {
 
 export type WorkflowStatus = "draft" | "active" | "paused" | "archived";
 export type NodeCategory = "trigger" | "condition" | "action" | "data" | "logic" | "human";
-export type NodeFieldType = "text" | "textarea" | "number" | "select" | "multiselect" | "keywords" | "tag" | "user" | "connection" | "time";
+export type NodeFieldType = "text" | "textarea" | "number" | "select" | "multiselect" | "keywords" | "tag" | "user" | "connection" | "time" | "credential";
 
 export type NodeField = {
   key: string;

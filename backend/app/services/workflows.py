@@ -25,6 +25,7 @@ from app.models import (
     WorkflowVersion,
 )
 from app.models.automation import FINISHED_RUN_STATUSES
+from app.models.commercial import IntegrationCredential
 from app.schemas.workflows import (
     ApprovalOut,
     IssueOut,
@@ -242,6 +243,12 @@ async def _validate_refs(db: AsyncSession, ctx: OrgContext, result: ValidationRe
             ChannelConnection.deleted_at.is_(None)))).all()  # fmt: skip
         if len(found) != len(conns):
             result.errors.append(_issue("The trigger uses a channel that was removed"))
+    creds = as_uuids(refs["credential"])
+    if creds:
+        found = (await db.scalars(select(IntegrationCredential.id).where(
+            IntegrationCredential.id.in_(creds), IntegrationCredential.organization_id == ctx.org_id))).all()  # fmt: skip
+        if len(found) != len(creds):
+            result.errors.append(_issue("An HTTP request step uses a saved credential that was deleted"))
     if result.errors:
         result.plan = None
 

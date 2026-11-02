@@ -24,17 +24,10 @@ async def get_plan_usage(db: DB, ctx: OrgCtx) -> PlanUsageOverview:
 
 @router.post("/change")
 async def change_plan(data: ChangePlanIn, db: DB, ctx: OrgCtx) -> PlanUsageOverview:
-    """Change the organization's plan (owner only)."""
+    """Switch to a free plan (owner only). Paid plans go through billing checkout."""
     ctx.require("billing.manage")
-    sub = await svc.get_or_create_subscription(db, ctx.org_id)
-    new_plan = await svc.get_plan_by_key(db, data.plan_key)
-
-    sub.plan_id = new_plan.id
-    sub.plan = new_plan
-    sub.billing_interval = data.billing_interval
-    # If upgrading from free or expired trial, set to active
-    if sub.status in ("trialing", "canceled"):
-        sub.status = "active"
+    ctx.require_not_suspended()
+    await svc.change_plan_self_service(db, ctx.org_id, ctx.user.id, data.plan_key, data.billing_interval)
     await db.commit()
 
     return await svc.get_usage_overview(db, ctx.org_id)

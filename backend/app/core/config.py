@@ -2,11 +2,15 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The repo-root .env is shared by docker compose, the backend and the frontend.
 _ROOT_ENV = Path(__file__).resolve().parents[3] / ".env"
+
+
+DEFAULT_CREDENTIALS_KEY = "wflow-credentials-encryption-key-32b!"
+DEFAULT_STRIPE_WEBHOOK_SECRET = "whsec_mock_wflow"
 
 
 class Settings(BaseSettings):
@@ -68,9 +72,11 @@ class Settings(BaseSettings):
     workflow_time_scale: float = 1.0
 
     # --- Commercial platform & Integrations (M6) ---
-    credentials_encryption_key: str = "wflow-credentials-encryption-key-32b!"
+    # Development only: lets webhooks and HTTP steps call services on this machine or LAN.
+    outbound_allow_private_networks: bool = False
+    credentials_encryption_key: str = DEFAULT_CREDENTIALS_KEY
     stripe_secret_key: str = "sk_test_mock_wflow"
-    stripe_webhook_secret: str = "whsec_mock_wflow"
+    stripe_webhook_secret: str = DEFAULT_STRIPE_WEBHOOK_SECRET
     billing_test_mode: bool = True
 
     # --- Object storage (MinIO locally, any S3-compatible service in production) ---
@@ -79,10 +85,11 @@ class Settings(BaseSettings):
     s3_public_endpoint_url: str = ""
     s3_bucket: str = "wflow-files"
     s3_region: str = "us-east-1"
-    s3_access_key: str = Field(default="", validation_alias=AliasChoices("S3_ACCESS_KEY", "MINIO_ROOT_USER"))
-    s3_secret_key: str = Field(
-        default="", validation_alias=AliasChoices("S3_SECRET_KEY", "MINIO_ROOT_PASSWORD")
-    )
+    # A bucket-scoped key in production; locally, blank means "use the MinIO root login".
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
+    minio_root_user: str = ""
+    minio_root_password: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -90,6 +97,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _guard_production(self) -> "Settings":
+        # An empty S3_ACCESS_KEY= line in .env must fall back, not connect with blank credentials.
+        self.s3_access_key = self.s3_access_key or self.minio_root_user
+        self.s3_secret_key = self.s3_secret_key or self.minio_root_password
         if self.environment == "production":
             if "change-me" in self.jwt_secret:
                 raise ValueError("JWT_SECRET must be set to a random value in production")
@@ -101,6 +111,25 @@ class Settings(BaseSettings):
                 raise ValueError("SIMULATOR_ENABLED must be false in production")
             if self.workflow_time_scale != 1.0:
                 raise ValueError("WORKFLOW_TIME_SCALE must be 1 in production")
+            # The defaults below are public (they are in the repository): anyone could decrypt stored
+            # credentials or forge billing webhooks with them.
+            if (
+                self.credentials_encryption_key == DEFAULT_CREDENTIALS_KEY
+                or len(self.credentials_encryption_key) < 32
+            ):
+                raise ValueError(
+                    "CREDENTIALS_ENCRYPTION_KEY must be a random value of 32+ characters in production"
+                )
+            if self.outbound_allow_private_networks:
+                raise ValueError("OUTBOUND_ALLOW_PRIVATE_NETWORKS must be false in production")
+            if self.billing_test_mode:
+                raise ValueError(
+                    "BILLING_TEST_MODE must be false in production (test checkouts need no payment)"
+                )
+            if self.stripe_webhook_secret in ("", DEFAULT_STRIPE_WEBHOOK_SECRET):
+                raise ValueError(
+                    "STRIPE_WEBHOOK_SECRET must be the real webhook signing secret in production"
+                )
         return self
 
 

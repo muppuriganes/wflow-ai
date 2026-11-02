@@ -25,6 +25,7 @@ with workflow.unsafe.imports_passed_through():
         NodeResult,
         RunInput,
         RunState,
+        WebhookDeliveryInput,
     )
 
 MAX_STEPS = 200
@@ -205,3 +206,23 @@ class ScheduleTriggerWorkflow:
             retry_policy=ACTIVITY_RETRY,
         )
         return str(res)
+
+
+@workflow.defn(name="WebhookDelivery")
+class WebhookDeliveryWorkflow:
+    """Delivers one event to one endpoint: up to 6 attempts, 30 s apart and doubling (about
+    16 minutes in total), each logged in the endpoint's delivery history."""
+
+    @workflow.run
+    async def run(self, inp: WebhookDeliveryInput) -> str:
+        fast = inp.time_scale < 1
+        retry = RetryPolicy(
+            initial_interval=timedelta(milliseconds=100) if fast else timedelta(seconds=30),
+            backoff_coefficient=2.0,
+            maximum_interval=timedelta(seconds=1) if fast else timedelta(minutes=10),
+            maximum_attempts=6,
+        )
+        result: str = await workflow.execute_activity(
+            acts.deliver_webhook_event, inp, start_to_close_timeout=timedelta(seconds=30), retry_policy=retry
+        )
+        return result

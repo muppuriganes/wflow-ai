@@ -187,12 +187,13 @@ Base URL `/api/v1`. Interactive OpenAPI docs: `/api/docs` (schema at `/api/opena
 |---|---|---|
 | GET | `/plans` | `org.read`; returns available plans with limits and monthly/yearly pricing |
 | GET | `/plans/usage` | `org.read`; current plan, subscription status, trial countdown, resource meters (members, channels, workflows, schedules, runs, messages, storage) |
-| POST | `/plans/change` | `billing.manage`; `{plan_key, billing_interval: monthly|yearly}`; updates tier |
+| POST | `/plans/change` | `billing.manage`; `{plan_key, billing_interval}`; free plans only (402 for paid plans — use checkout) |
 
 ### Commercial Billing — under `/organizations/{id}`
 | Method | Path | Permission / notes |
 |---|---|---|
-| POST | `/billing/checkout` | `billing.manage`; `{plan_key, return_url}`; returns `{checkout_url}` |
+| POST | `/billing/checkout` | `billing.manage`; `{plan_key, billing_interval, return_url}` (return URL must be a page of this app); returns `{checkout_url}` |
+| POST | `/billing/checkout/confirm` | `billing.manage`; test mode only: `{session_id}` from the checkout return; activates the plan and records a test invoice |
 | POST | `/billing/portal` | `billing.manage`; `{return_url}`; returns `{portal_url}` |
 | GET | `/billing/invoices` | `billing.manage`; list past invoices with amounts, statuses, and receipt URLs |
 | POST | `/billing/cancel` | `billing.manage`; sets `cancel_at_period_end = true` |
@@ -202,7 +203,7 @@ Base URL `/api/v1`. Interactive OpenAPI docs: `/api/docs` (schema at `/api/opena
 ### Integrations & Webhooks — under `/organizations/{id}`
 | Method | Path | Permission / notes |
 |---|---|---|
-| GET / POST | `/webhooks` | `integrations.read` / `integrations.manage`. Create: `{name, target_url, events: [...]}`; returns `secret_key` once |
+| GET / POST | `/webhooks` | `integrations.read` / `integrations.manage`. Create: `{name, target_url, events: [...]}` — events from `message.received`, `message.sent`, `contact.created`, `lead.stage_changed`, `workflow.run.completed`, `workflow.run.failed`; returns `secret_key` once. Payload: `{id, type, created_at, organization_id, data}` |
 | PATCH / DELETE | `/webhooks/{id}` | `integrations.manage`; update url/events/active flag or delete |
 | POST | `/webhooks/{id}/ping` | `integrations.manage`; sends test ping and returns delivery latency |
 | GET | `/webhooks/{id}/deliveries` | `integrations.read`; list past 50 deliveries with HTTP status and response times |

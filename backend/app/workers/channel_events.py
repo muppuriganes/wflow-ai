@@ -36,6 +36,7 @@ from app.schemas.channel_events import (
     MessageReceivedEvent,
     MessageSentEvent,
 )
+from app.services import webhooks
 from app.services.messaging import preview
 from app.services.realtime import publish
 from app.workflow_engine.triggers import dispatch_inbound
@@ -118,6 +119,7 @@ class Inbound:
     text: str | None
     new_conversation: bool
     new_contact: bool
+    contact_id: uuid.UUID | None = None
 
 
 async def _handle_received(
@@ -233,8 +235,9 @@ async def _handle_received(
         )
     )
     return Inbound(
-        conv_id, msg_id, p.content, new_conversation=bool(conv_created), new_contact=bool(contact_created)
-    )
+        conv_id, msg_id, p.content, new_conversation=bool(conv_created), new_contact=bool(contact_created),
+        contact_id=contact_id,
+    )  # fmt: skip
 
 
 async def _handle_sent(db: AsyncSession, conn: ChannelConnection, event: MessageSentEvent) -> None:
@@ -296,6 +299,11 @@ async def process_event(
         except Exception:
             # The message is stored; a failing automation must never block message processing.
             log.exception("workflow_dispatch_failed", event_id=str(event.event_id))
+        ids = {"conversation_id": str(outcome.conversation_id), "contact_id": str(outcome.contact_id)}
+        if outcome.new_contact:
+            await webhooks.emit(event.organization_id, "contact.created", {**ids, "source": "whatsapp"})
+        await webhooks.emit(event.organization_id, "message.received",
+                            {**ids, "message_id": str(outcome.message_id), "text": outcome.text})  # fmt: skip
     return True
 
 

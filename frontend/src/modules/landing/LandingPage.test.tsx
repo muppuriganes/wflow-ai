@@ -17,7 +17,7 @@ describe("LandingPage", () => {
     ).toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: /Start 14-Day Free Trial/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Explore Live Product Studio/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Take the product tour/i })).toBeInTheDocument();
   });
 
   it("switches studio preview tabs between workflow, inbox, crm and telemetry", async () => {
@@ -36,7 +36,7 @@ describe("LandingPage", () => {
     expect(await screen.findByText(/Fixed 7-Stage Sales Pipeline with Drag & Drop/i)).toBeInTheDocument();
 
     // Click Live Telemetry tab
-    await userEvent.click(screen.getByRole("button", { name: /Live Telemetry/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^Analytics$/i }));
     expect(await screen.findByText(/First Response Time/i)).toBeInTheDocument();
   });
 
