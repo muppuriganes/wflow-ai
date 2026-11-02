@@ -1,6 +1,6 @@
 # Development status
 
-_Last updated: 2026-11-02 — end of M4._
+_Last updated: 2026-11-02 — end of M5._
 
 ## Working now (implemented, tested, verified in the browser)
 
@@ -46,18 +46,21 @@ _Last updated: 2026-11-02 — end of M4._
 | Triggers | Keyword/any inbound message, new conversation, new contact, manual (“Run now”), webhook with idempotency key |
 | Execution Logs | Runs list with filters, run detail with per-step input/output, retry, cancel; Approvals queue |
 
+### M5 — Schedules, templates & analytics
+| Area | Details |
+|---|---|
+| Schedules | `trigger.schedule` workflow trigger; one-off and recurring (daily / weekly days / monthly / cron), evaluated in the organization's IANA timezone; Temporal Schedules with skip overlap policy and 15-min catchup window; manual "Run now"; optional contact tag target (dispatches a run per matching contact respecting opt-out); Schedules page (`/schedules`) with list, create, pause, resume, trigger, delete |
+| Templates | Seeded starter blueprints (Keyword auto-reply, Out-of-hours reply, New-lead capture, Approval for discounts, Follow-up after no reply); Templates page (`/templates`) with category tabs, search, read-only React Flow canvas preview modal, and "Use template" instantiation into draft workflow |
+| Analytics | Real data only (no mock data); `/analytics` and `/` Overview dashboard; date ranges (7d, 30d, 90d); conversation stats, response time, inbound/outbound volume timeline, CRM pipeline value & conversion, task health, workflow execution reliability & top failing steps; CSV export with `analytics.read` permission |
+
 ## Test results (actually executed 2026-11-02)
-- Backend: `uv run pytest` → **62 passed** (M4 adds 14 workflow tests, 9 of them end to end on Temporal). M3 run: **48 passed** (incl. 5 inbox and 4 CRM tests: views/counts/reopen, assignment permissions, read-only viewer, attachments in/out, live notifications, contact dedupe/merge, custom fields, pipeline/tasks, CRM isolation).
-- Gateway: `npm test` → **25 passed** (adds inbound/outbound media).
-- Frontend: `npm test` → **17 passed** (adds SSE stream parser); `npm run build` passes with per-route code splitting.
-- Manual: real services (API + gateway + worker + Redis + Postgres) driven from the browser — simulator end to end;
-  WhatsApp Web start → live QR → cancel (session wiped); gateway crash → restore; role restrictions.
-  M4: builder → keyword trigger + send + delay + lead → dry test run on a real conversation → publish → simulator
-  “price” message → live run sends the reply and waits on the delay → cancel from Execution Logs.
-  M3: simulator customer photo → inbox (live) → assign → reply → internal note → create lead → move stage → contact timeline → task; phone layout.
+- Backend: `uv run pytest` → **75 passed** (M5 adds 13 tests covering schedules, templates, real analytics, and RLS tenant isolation). M4 baseline: 62 passed; M3 baseline: 48 passed.
+- Gateway: `npm test` → **25 passed**.
+- Frontend: `npm test` → **17 passed**; `npm run typecheck` 0 errors; `npm run build` passes cleanly with per-route code splitting for schedules, templates, and analytics.
+- Manual: verified in browser against local stack (Postgres :55432, Redis :56379, MinIO :59000, Temporal :57233).
 
 ## Not built yet
-Schedules/templates/analytics (M5), integrations/billing/Super Admin console (M6), AI track.
+M6 (Commercial platform: plans & usage limits, billing foundation, integrations framework / webhooks, Super Admin console), M7 (Hardening), AI track.
 
 ## Known limitations
 - Real WhatsApp linking needs a phone scan — please test with a spare number (see WHATSAPP_CONNECTOR.md risks).
@@ -68,6 +71,6 @@ Schedules/templates/analytics (M5), integrations/billing/Super Admin console (M6
 - WhatsApp session data is protected by folder isolation, not encryption at rest (see WHATSAPP_CONNECTOR.md).
 - `npm audit` reports a high-severity issue in `basic-ftp`, pulled in by puppeteer's proxy support; the gateway never uses FTP.
 - Workflows are acyclic (no loops) and branches don't re-join in parallel; the builder is not usable at phone
-  width (the list and Execution Logs are). Approvals can be decided in Execution Logs only (no notifications yet).
+  width (the list, Execution Logs, Schedules, Templates, and Analytics are). Approvals can be decided in Execution Logs only (no notifications yet).
 - `mypy app` still reports pre-existing typing issues (redis/boto3 stubs, a few older call sites); ruff is clean.
 - Emails are sent inside the request (no queued retries yet). Org deletion is soft; no purge job yet.

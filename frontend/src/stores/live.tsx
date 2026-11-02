@@ -16,8 +16,10 @@ const AFFECTED: Record<string, string[]> = {
   "contact.updated": ["contacts", "contact", "inbox", "conversation"],
   "lead.updated": ["leads", "contact"],
   "task.updated": ["tasks", "contact"],
-  "run.updated": ["runs", "run", "workflows", "workflow"],
+  "run.updated": ["runs", "run", "workflows", "workflow", "analytics"],
   "approval.updated": ["approvals"],
+  "schedule.updated": ["schedules", "schedule", "runs", "workflows"],
+  "template.updated": ["templates", "template"],
 };
 
 /** Keeps the current organization's data fresh by listening to server change notifications. */

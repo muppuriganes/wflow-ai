@@ -153,3 +153,28 @@ Base URL `/api/v1`. Interactive OpenAPI docs: `/api/docs` (schema at `/api/opena
 ### Public webhook trigger (no auth; the token is the credential)
 | POST | `/api/v1/hooks/{token}` | JSON object ≤ 64 KB; optional `Idempotency-Key`; 60/min per token; 202 `{status: accepted\|duplicate, run_id}` |
 |---|---|---|
+
+
+## Endpoints (M5) — all under `/organizations/{id}`
+
+### Schedules
+| Method | Path | Permission / notes |
+|---|---|---|
+| GET / POST | `/schedules` | `workflows.read` / `workflows.manage`; list and create schedule |
+| GET / PATCH / DELETE | `/schedules/{id}` | `workflows.read` / `workflows.manage` |
+| POST | `/schedules/{id}/pause`, `/schedules/{id}/resume` | `workflows.manage`; pauses or resumes Temporal Schedule |
+| POST | `/schedules/{id}/trigger` | `workflows.manage`; immediate execution of scheduled workflow |
+
+### Workflow Templates
+| Method | Path | Permission / notes |
+|---|---|---|
+| GET / POST | `/workflow-templates?category=` | `workflows.read` / `templates.manage`; lists system and custom templates |
+| GET / DELETE | `/workflow-templates/{id}` | `workflows.read` / `templates.manage`; system templates cannot be deleted |
+| POST | `/workflow-templates/{id}/instantiate` | `workflows.manage`; creates a new draft workflow from blueprint |
+
+### Analytics
+| Method | Path | Permission / notes |
+|---|---|---|
+| GET | `/analytics/overview` | `analytics.read` or `org.read`; returns live counters for dashboard overview |
+| GET | `/analytics?range=7d\|30d\|90d&from_date=&to_date=` | `analytics.read`; aggregate conversations, volume timeline, CRM, workflow health |
+| GET | `/analytics/export?type=conversations\|messages\|crm\|workflows&range=30d` | `analytics.read`; CSV file download |

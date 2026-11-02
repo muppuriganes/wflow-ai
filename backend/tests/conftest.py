@@ -74,6 +74,8 @@ async def clean_db(admin_engine: AsyncEngine) -> AsyncIterator[None]:
         await conn.execute(text("DELETE FROM channel_events"))
         await conn.execute(text("DELETE FROM customer_activities"))
         await conn.execute(text("DELETE FROM approvals"))
+        await conn.execute(text("DELETE FROM schedules"))
+        await conn.execute(text("DELETE FROM workflow_templates WHERE is_system = false"))
         await conn.execute(text("DELETE FROM organizations"))
         await conn.execute(text("DELETE FROM users"))
 

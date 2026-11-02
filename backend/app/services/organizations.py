@@ -32,12 +32,22 @@ class OrgContext:
         return self.organization.id
 
     @property
+    def user_id(self) -> uuid.UUID:
+        return self.user.id
+
+    @property
     def rank(self) -> int:
         return self.membership.role.rank
 
     def require(self, permission: str) -> None:
         if permission not in self.permissions:
             raise PermissionDeniedError(f"Missing permission: {permission}", code="missing_permission")
+
+    def require_any(self, *permissions: str) -> None:
+        if not any(p in self.permissions for p in permissions):
+            raise PermissionDeniedError(
+                f"Missing one of permissions: {', '.join(permissions)}", code="missing_permission"
+            )
 
 
 def _slugify(name: str) -> str:

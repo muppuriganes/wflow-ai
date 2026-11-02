@@ -188,3 +188,16 @@ class GraphWorkflow:
             cause = exc.cause if isinstance(exc, ActivityError) and exc.cause else exc
             await self._state(inp, "FAILED", error=str(cause)[:4000])
             return "FAILED"
+
+
+@workflow.defn(name="ScheduleTriggerWorkflow")
+class ScheduleTriggerWorkflow:
+    @workflow.run
+    async def run(self, inp: dict[str, Any]) -> str:
+        res = await workflow.execute_activity(
+            acts.dispatch_schedule_activity,
+            inp,
+            start_to_close_timeout=timedelta(minutes=5),
+            retry_policy=ACTIVITY_RETRY,
+        )
+        return str(res)

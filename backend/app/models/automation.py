@@ -135,3 +135,52 @@ class Approval(UUIDPrimaryKey, Timestamps, Base):
     decided_at: Mapped[datetime | None]
     decision_note: Mapped[str | None] = mapped_column(String(500))
     expires_at: Mapped[datetime | None]
+
+
+class Schedule(UUIDPrimaryKey, Timestamps, Base):
+    """Scheduled and recurring workflow runs."""
+
+    __tablename__ = "schedules"
+    __table_args__ = (
+        Index("ix_schedules_org_status", "organization_id", "status"),
+        Index("ix_schedules_workflow", "workflow_id"),
+    )
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str | None] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(
+        String(20), default="active", server_default="active"
+    )  # active | paused
+    schedule_type: Mapped[str] = mapped_column(
+        String(20), default="daily", server_default="daily"
+    )  # once | daily | weekly | monthly | cron
+    config: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
+    timezone: Mapped[str] = mapped_column(String(50), default="UTC", server_default="UTC")
+    target_tag_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tags.id", ondelete="SET NULL"))
+    temporal_schedule_id: Mapped[str | None] = mapped_column(String(100), unique=True)
+    last_run_at: Mapped[datetime | None]
+    next_run_at: Mapped[datetime | None]
+    total_runs: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
+class WorkflowTemplate(UUIDPrimaryKey, Timestamps, Base):
+    """Ready-made workflow templates: built-in system starters and private org templates."""
+
+    __tablename__ = "workflow_templates"
+    __table_args__ = (
+        Index("ix_workflow_templates_category", "category"),
+        Index("ix_workflow_templates_org", "organization_id"),
+    )
+
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str | None] = mapped_column(String(500))
+    category: Mapped[str] = mapped_column(String(50), default="General", server_default="General")
+    definition: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))

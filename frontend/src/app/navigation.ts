@@ -53,31 +53,16 @@ export const workspaceNav: NavItem[] = [
     milestone: { id: "AI", summary: "Document upload and retrieval for AI answers. Planned with the AI track." },
   },
   { to: "/contacts", label: "Contacts & CRM", icon: Contact, also: ["/leads", "/tasks"] },
-  {
-    to: "/schedules",
-    label: "Schedules",
-    icon: CalendarClock,
-    milestone: { id: "M5", summary: "Scheduled and recurring automations with timezone support." },
-  },
+  { to: "/schedules", label: "Schedules", icon: CalendarClock },
   {
     to: "/integrations",
     label: "Integrations",
     icon: Blocks,
     milestone: { id: "M6", summary: "Connector registry, webhooks and REST integrations with encrypted credentials." },
   },
-  {
-    to: "/analytics",
-    label: "Analytics",
-    icon: BarChart3,
-    milestone: { id: "M5", summary: "Conversation, lead and automation analytics from real data, with export." },
-  },
+  { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/executions", label: "Execution Logs", icon: Activity },
-  {
-    to: "/templates",
-    label: "Templates",
-    icon: LayoutTemplate,
-    milestone: { id: "M5", summary: "Ready-made workflow templates you can preview, copy and customise." },
-  },
+  { to: "/templates", label: "Templates", icon: LayoutTemplate },
 ];
 
 export const adminNav: NavItem[] = [

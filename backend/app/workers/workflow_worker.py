@@ -11,7 +11,7 @@ from temporalio.worker import Worker
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.workflow_engine.activities import ALL_ACTIVITIES
-from app.workflow_engine.workflow import GraphWorkflow
+from app.workflow_engine.workflow import GraphWorkflow, ScheduleTriggerWorkflow
 
 log = get_logger("worker.workflows")
 
@@ -20,7 +20,7 @@ def build_worker(client: Client, task_queue: str) -> Worker:
     return Worker(
         client,
         task_queue=task_queue,
-        workflows=[GraphWorkflow],
+        workflows=[GraphWorkflow, ScheduleTriggerWorkflow],
         activities=ALL_ACTIVITIES,
         max_concurrent_activities=50,
     )

@@ -1,4 +1,12 @@
-from app.models.automation import Approval, NodeRun, Workflow, WorkflowRun, WorkflowVersion
+from app.models.automation import (
+    Approval,
+    NodeRun,
+    Schedule,
+    Workflow,
+    WorkflowRun,
+    WorkflowTemplate,
+    WorkflowVersion,
+)
 from app.models.channels import ChannelConnection, ChannelEvent
 from app.models.crm import CustomerActivity, CustomFieldDefinition, FollowUpTask, Lead
 from app.models.governance import AuditLog
@@ -27,8 +35,10 @@ from app.models.messaging import (
 __all__ = [
     "Approval",
     "NodeRun",
+    "Schedule",
     "Workflow",
     "WorkflowRun",
+    "WorkflowTemplate",
     "WorkflowVersion",
     "ContactTag",
     "ConversationAssignment",

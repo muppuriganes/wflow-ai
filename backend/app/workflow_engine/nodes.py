@@ -110,6 +110,21 @@ NODE_TYPES: tuple[NodeDef, ...] = (
     NodeDef("trigger.webhook", "trigger", "Webhook",
             "Starts when another system calls this workflow's secret URL with JSON. "
             "Data is available as {{webhook.<field>}}."),
+    NodeDef(
+        "trigger.schedule", "trigger", "Schedule",
+        "Starts on a schedule: recurring or one-off. Can run once or for each contact with a tag.",
+        fields=(
+            FieldDef("frequency", "Frequency", "select", required=True, default="daily",
+                     options=(("daily", "Daily"), ("weekly", "Weekly"), ("monthly", "Monthly"), ("cron", "Custom cron"), ("once", "One-off"))),
+            FieldDef("time", "Time of day", "time", default="09:00", help="In organization timezone"),
+            FieldDef("days", "Days of week", "multiselect", options=DAYS, default=["mon", "tue", "wed", "thu", "fri"]),
+            FieldDef("day_of_month", "Day of month (1-31)", "number", min=1, max=31, default=1),
+            FieldDef("cron_expression", "Cron expression", "text", help="Standard cron (e.g. 0 9 * * 1-5)", max_length=100),
+            FieldDef("date", "Date (for one-off)", "text", help="YYYY-MM-DD", max_length=20),
+            FieldDef("target_tag_id", "Run for contacts with tag", "tag", help="Optional. If set, runs for each contact with this tag."),
+        ),
+        provides_conversation=False, provides_contact=True, extra={"contact_optional": True},
+    ),
     # --- Conditions ------------------------------------------------------------------
     NodeDef(
         "condition.compare", "condition", "If / else",

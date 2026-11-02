@@ -414,3 +414,140 @@ export type Approval = {
   expires_at: string | null;
   created_at: string;
 };
+
+// --- M5 Schedules, Templates & Analytics -------------------------------------
+
+export type ScheduleType = "once" | "daily" | "weekly" | "monthly" | "cron";
+export type ScheduleStatus = "active" | "paused";
+
+export type Schedule = {
+  id: string;
+  organization_id: string;
+  workflow_id: string;
+  workflow_name: string;
+  name: string;
+  description: string | null;
+  status: ScheduleStatus;
+  schedule_type: ScheduleType;
+  config: Record<string, any>;
+  timezone: string;
+  target_tag_id: string | null;
+  target_tag_name: string | null;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  total_runs: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ScheduleCreateInput = {
+  workflow_id: string;
+  name: string;
+  description?: string | null;
+  schedule_type?: ScheduleType;
+  config?: Record<string, any>;
+  timezone?: string | null;
+  target_tag_id?: string | null;
+};
+
+export type ScheduleUpdateInput = {
+  name?: string;
+  description?: string | null;
+  schedule_type?: ScheduleType;
+  config?: Record<string, any>;
+  timezone?: string | null;
+  target_tag_id?: string | null;
+};
+
+export type WorkflowTemplate = {
+  id: string;
+  organization_id: string | null;
+  name: string;
+  description: string | null;
+  category: string;
+  definition: WorkflowDefinition;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TemplateCreateInput = {
+  name: string;
+  description?: string | null;
+  category?: string;
+  definition: WorkflowDefinition;
+};
+
+export type AnalyticsOverview = {
+  new_conversations: number;
+  open_conversations: number;
+  avg_response_time_seconds: number | null;
+  total_messages_in: number;
+  total_messages_out: number;
+  active_leads_count: number;
+  total_pipeline_value: number;
+  overdue_tasks_count: number;
+  workflow_runs_total: number;
+  workflow_success_rate: number | null;
+};
+
+export type DailyMessageVolume = {
+  date: string;
+  inbound: number;
+  outbound: number;
+};
+
+export type ChannelConversationStat = {
+  connection_id: string;
+  channel_name: string;
+  channel_type: string;
+  count: number;
+};
+
+export type AgentPerformanceStat = {
+  user_id: string | null;
+  name: string;
+  resolved_count: number;
+  avg_response_time_seconds: number | null;
+};
+
+export type LeadStageStat = {
+  stage: string;
+  count: number;
+  total_value: number;
+};
+
+export type TopFailingStep = {
+  node_type: string;
+  node_id: string;
+  failure_count: number;
+  last_error: string | null;
+};
+
+export type AnalyticsData = {
+  from_date: string;
+  to_date: string;
+  range: string;
+  overview: AnalyticsOverview;
+  conversations: {
+    new: number;
+    resolved: number;
+    avg_response_time_seconds: number | null;
+    by_channel: ChannelConversationStat[];
+    by_agent: AgentPerformanceStat[];
+  };
+  messages: DailyMessageVolume[];
+  crm: {
+    new_contacts: number;
+    leads_by_stage: LeadStageStat[];
+    conversion_rate: number | null;
+    tasks: { total: number; completed: number; overdue: number };
+  };
+  workflows: {
+    total_runs: number;
+    completed_runs: number;
+    failed_runs: number;
+    success_rate: number | null;
+    top_failing_steps: TopFailingStep[];
+  };
+};

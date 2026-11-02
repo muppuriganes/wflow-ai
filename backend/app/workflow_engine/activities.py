@@ -254,6 +254,14 @@ async def expire_approval(organization_id: str, approval_id: str) -> None:
             await publish(organization_id, "approval.updated", approval_id=approval.id)
 
 
+@activity.defn
+async def dispatch_schedule_activity(inp: dict[str, Any]) -> dict[str, Any]:
+    from app.services.schedules import fire_schedule_from_activity
+
+    schedule_id = inp["schedule_id"]
+    return await fire_schedule_from_activity(schedule_id)
+
+
 ALL_ACTIVITIES: list[Callable[..., Any]] = [
     prepare_run,
     set_run_state,
@@ -261,4 +269,5 @@ ALL_ACTIVITIES: list[Callable[..., Any]] = [
     execute_node,
     create_approval,
     expire_approval,
+    dispatch_schedule_activity,
 ]

@@ -100,5 +100,24 @@ All M3 tables use the standard tenant policy.
 All use the standard tenant policy. `workflow_by_webhook_token(text)` (SECURITY DEFINER) resolves a public
 webhook token to its active workflow and organization before the tenant context exists.
 
+## Schedules & Templates (M5)
+
+| Table | Notes |
+|---|---|
+| schedules | organization_id, workflow_id, name, description, status (active/paused), schedule_type (daily/weekly/monthly/cron/once), config JSONB, 	imezone, 	arget_tag_id (optional audience broadcast), last_run_at, 
+ext_run_at, 	otal_runs |
+| workflow_templates | organization_id (NULL for system templates), name, description, category, definition JSONB, is_system |
+
+### RLS Policies (M5)
+- schedules: standard tenant policy USING (organization_id = app_current_org_id()) WITH CHECK (organization_id = app_current_org_id()).
+- workflow_templates: USING (organization_id IS NULL OR organization_id = app_current_org_id()) WITH CHECK (organization_id = app_current_org_id()). Read-only for system templates; tenant users can create their own custom templates within their organization.
+
+### Analytics Indexes (M5)
+- messages (organization_id, created_at, direction)
+- conversations (organization_id, created_at, status)
+- leads (organization_id, stage)
+- contacts (organization_id, created_at)
+- ollow_up_tasks (organization_id, due_at, completed_at)
+
 ## Planned (later milestones)
-Schedules and templates (M5), integrations, billing (M6) — each with `organization_id` + RLS.
+Integrations framework, billing foundation, Super Admin console (M6), hardening & observability (M7) — each with organization_id + RLS.

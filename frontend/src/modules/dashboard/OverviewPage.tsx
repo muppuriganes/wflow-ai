@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, CheckCircle2, Circle, Clock3 } from "lucide-react";
+import { ArrowRight, BarChart3, CheckCircle2, Circle, Clock3 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/states";
+import { analyticsApi } from "@/services/analytics";
 import { channelsApi } from "@/services/channels";
 import { orgApi } from "@/services/organizations";
 import { useAuth } from "@/stores/auth";
@@ -37,6 +38,13 @@ export function OverviewPage() {
   const canSeeChannels = org.can("connections.read");
   const connections = useQuery({ queryKey: orgKeys.scoped(org.id, "connections"), queryFn: () => channelsApi.list(org.id), enabled: canSeeChannels });
   const liveChannels = (connections.data ?? []).filter((c) => c.status === "CONNECTED" && c.channel_type === "whatsapp_web").length;
+
+  const canSeeAnalytics = org.can("analytics.read");
+  const overview = useQuery({
+    queryKey: orgKeys.scoped(org.id, "analytics-overview"),
+    queryFn: () => analyticsApi.overview(org.id),
+    enabled: canSeeAnalytics,
+  });
 
   const teamSize = members.data?.length ?? 0;
   const pending = invitations.data?.length ?? 0;
@@ -101,12 +109,55 @@ export function OverviewPage() {
         </Card>
       </div>
       <Card className="mt-4">
-        <CardHeader title="Activity metrics" description="Conversations, messages, workflow runs and response times." />
-        <EmptyState
-          icon={BarChart3}
-          title="No activity yet"
-          description="Metrics are calculated from real conversations and workflow runs. They appear here once a channel is connected."
-        />
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold">Activity metrics</h2>
+            <p className="text-xs text-muted">Real-time counts for conversations, leads, tasks, and workflows.</p>
+          </div>
+          {canSeeAnalytics && (
+            <Link to="/analytics" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              View detailed analytics <ArrowRight className="size-3" />
+            </Link>
+          )}
+        </div>
+        {overview.data ? (
+          <div className="grid grid-cols-2 divide-x divide-y border-t border-border/40 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="p-4">
+              <div className="text-xs text-muted">Active Chats</div>
+              <div className="mt-1 text-xl font-bold">{overview.data.open_conversations}</div>
+            </div>
+            <div className="p-4">
+              <div className="text-xs text-muted">Active Leads</div>
+              <div className="mt-1 text-xl font-bold">{overview.data.active_leads_count}</div>
+            </div>
+            <div className="p-4">
+              <div className="text-xs text-muted">Pipeline Value</div>
+              <div className="mt-1 text-xl font-bold">
+                ${Math.round(overview.data.total_pipeline_value).toLocaleString()}
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="text-xs text-muted">Overdue Tasks</div>
+              <div className="mt-1 text-xl font-bold">{overview.data.overdue_tasks_count}</div>
+            </div>
+            <div className="p-4">
+              <div className="text-xs text-muted">Total Runs</div>
+              <div className="mt-1 text-xl font-bold">{overview.data.workflow_runs_total}</div>
+            </div>
+            <div className="p-4">
+              <div className="text-xs text-muted">Success Rate</div>
+              <div className="mt-1 text-xl font-bold">
+                {overview.data.workflow_success_rate !== null ? `${overview.data.workflow_success_rate}%` : "100%"}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            icon={BarChart3}
+            title="No activity yet"
+            description="Metrics are calculated from real conversations and workflow runs. They appear here once a channel is connected."
+          />
+        )}
       </Card>
     </>
   );

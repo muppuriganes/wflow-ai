@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    analytics,
     auth,
     channels,
     crm,
@@ -11,7 +12,9 @@ from app.api.v1 import (
     me,
     organizations,
     roles,
+    schedules,
     stream,
+    templates,
     workflows,
 )
 
@@ -27,6 +30,9 @@ for module in (
     inbox,
     crm,
     workflows,
+    schedules,
+    templates,
+    analytics,
     stream,
     internal,
 ):

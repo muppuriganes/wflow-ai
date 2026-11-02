@@ -10,7 +10,7 @@ type DialogProps = {
   description?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg" | "xl";
 };
 
 export function Dialog({ open, onOpenChange, title, description, children, footer, size = "sm" }: DialogProps) {
@@ -20,8 +20,11 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-foreground/25" />
         <DialogPrimitive.Content
           className={cn(
-            "fixed left-1/2 top-[12vh] z-50 w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border bg-surface shadow-overlay",
-            size === "sm" ? "max-w-md" : "max-w-xl",
+            "fixed left-1/2 top-[8vh] z-50 w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border bg-surface shadow-overlay",
+            size === "sm" && "max-w-md",
+            size === "md" && "max-w-xl",
+            size === "lg" && "max-w-3xl",
+            size === "xl" && "max-w-5xl",
           )}
         >
           <header className="flex items-start justify-between gap-4 border-b px-4 py-3">
