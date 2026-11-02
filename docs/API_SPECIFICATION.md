@@ -77,9 +77,6 @@ Base URL `/api/v1`. Interactive OpenAPI docs: `/api/docs` (schema at `/api/opena
 | DELETE | `/connections/{cid}` | `connections.manage` — gateway wipe first; 503 if it cannot confirm |
 | GET | `/connections/{cid}/events` | `connections.read` — connection log (paginated) |
 | POST | `/connections/{cid}/simulate/scan`, `/simulate/inbound` | simulator connections only, dev |
-| GET | `/conversations?connection_id=` | `inbox.read` |
-| GET | `/conversations/{conv}/messages` | `inbox.read` (clears unread) |
-| POST | `/conversations/{conv}/messages` | `inbox.reply`; `{text, client_message_id}`; 409 `contact_opted_out` / `not_customer_initiated` / `connection_not_ready`; 429 over the send limit |
 
 ### Internal (service-to-service, `Authorization: Bearer INTERNAL_API_TOKEN`, not in OpenAPI)
 | Method | Path | |
@@ -89,3 +86,41 @@ Base URL `/api/v1`. Interactive OpenAPI docs: `/api/docs` (schema at `/api/opena
 ### Messaging gateway internal API (port 8200, never public)
 `GET /health` · `GET /v1/connections` · `POST /v1/connections/{id}/start|stop|logout|remove|messages` ·
 `POST /v1/simulator/{id}/scan|inbound` (only when `SIMULATOR_ENABLED`).
+
+## Endpoints (M3) — all under `/organizations/{id}`
+
+### Inbox
+| Method | Path | Permission / notes |
+|---|---|---|
+| GET | `/conversations?view=active\|mine\|unassigned\|resolved\|archived\|all&q=&connection_id=&tag_id=&priority=` | `inbox.read` (paginated) |
+| GET | `/inbox/counts` · `/inbox/assignees` | `inbox.read` |
+| GET | `/conversations/{c}` | `inbox.read` |
+| POST | `/conversations/{c}/assign` `{user_id\|null}` | self-claim: `inbox.reply`; otherwise `inbox.assign`; assignee must be able to read the inbox |
+| POST | `/conversations/{c}/status` · `/priority` · `/takeover` | `inbox.reply` |
+| GET / POST | `/conversations/{c}/notes` | read / `inbox.reply` |
+| GET | `/conversations/{c}/assignments` | `inbox.read` |
+| GET | `/conversations/{c}/messages` | `inbox.read` (clears unread; includes attachments, sender) |
+| POST | `/conversations/{c}/messages` `{text, client_message_id}` | `inbox.reply`; 409 `contact_opted_out` / `not_customer_initiated` / `connection_not_ready`; 429 |
+| POST | `/conversations/{c}/attachments` (multipart `file`, `client_message_id`, `caption?`) | `inbox.reply`; ≤16 MB; 400 `unsupported_file_type` |
+| GET | `/attachments/{a}/url` | `inbox.read`; 5-minute signed link |
+| GET | `/events/stream` | `inbox.read`; Server-Sent Events, `event: change` with `{type, …ids}`; closes at access-token lifetime |
+| GET / POST / PATCH / DELETE | `/tags`, `/tags/{t}` | read `contacts.read`; write `contacts.manage` |
+| PUT | `/contacts/{id}/tags` `[tag ids]` | `contacts.manage` |
+
+### CRM
+| Method | Path | Permission / notes |
+|---|---|---|
+| GET / POST | `/custom-fields?entity=contact\|lead` | read `contacts.read`; create/update `org.update` |
+| PATCH | `/custom-fields/{f}` | `org.update` (label, options, required, archived) |
+| GET / POST | `/contacts?q=&tag_id=` | `contacts.read` / `contacts.manage`; 409 `contact_exists` with `details.contact_id` |
+| GET / PATCH / DELETE | `/contacts/{id}` | detail includes conversations, leads, tasks; delete is soft |
+| POST | `/contacts/{id}/consent` `{opted_out}` | `contacts.manage` |
+| GET / POST | `/contacts/{id}/activities` | timeline; POST adds a note |
+| GET | `/leads?owner=me\|unassigned&q=&contact_id=` | `leads.read`; returns `{items, stages: [{stage, count, total_value}]}` |
+| POST / PATCH / DELETE | `/leads`, `/leads/{id}` | `leads.manage`; owner must be a member |
+| GET | `/tasks?scope=mine\|all&status=open\|done\|all&due=overdue\|today\|upcoming&tz_offset=` | `contacts.read` |
+| POST / PATCH / DELETE | `/tasks`, `/tasks/{id}` | `contacts.manage`; `due_at` must include a timezone offset |
+
+### Internal (gateway → backend)
+| POST | `/internal/channels/media` (multipart `organization_id`, `connection_id`, `file`) | Stores inbound media, returns `attachment_id` |
+|---|---|---|

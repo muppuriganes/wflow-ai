@@ -17,14 +17,14 @@ from typing import Any
 from pydantic import TypeAdapter, ValidationError
 from redis.asyncio import Redis
 from redis.exceptions import RedisError, ResponseError
-from sqlalchemy import select, update
+from sqlalchemy import case, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.database.session import SessionFactory, set_rls_context
-from app.models import ChannelConnection, Contact, Conversation, Message
+from app.models import ChannelConnection, Contact, Conversation, Message, MessageAttachment
 from app.models import ChannelEvent as ChannelEventRow
 from app.models.messaging import STATUS_RANK
 from app.schemas.channel_events import (
@@ -35,6 +35,7 @@ from app.schemas.channel_events import (
     MessageSentEvent,
 )
 from app.services.messaging import preview
+from app.services.realtime import publish
 
 log = get_logger("worker.channel_events")
 
@@ -125,6 +126,10 @@ async def _handle_received(db: AsyncSession, conn: ChannelConnection, event: Mes
             set_={
                 "display_name": p.sender_name or Contact.display_name,
                 "last_inbound_at": event.occurred_at,
+                "deleted_at": None,
+                "consent_status": case(
+                    (Contact.consent_status == "unknown", "engaged"), else_=Contact.consent_status
+                ),
                 "updated_at": now,
             },
         )
@@ -178,6 +183,17 @@ async def _handle_received(db: AsyncSession, conn: ChannelConnection, event: Mes
     )
     if msg_id is None:
         return  # duplicate message: conversation counters stay untouched
+    if p.attachment is not None:
+        # Uploaded by the gateway just before this event; bind it only within this organization.
+        await db.execute(
+            update(MessageAttachment)
+            .where(
+                MessageAttachment.id == p.attachment.attachment_id,
+                MessageAttachment.organization_id == event.organization_id,
+                MessageAttachment.message_id.is_(None),
+            )
+            .values(message_id=msg_id)
+        )
     await db.execute(
         update(Conversation)
         .where(Conversation.id == conv_id)
@@ -185,7 +201,13 @@ async def _handle_received(db: AsyncSession, conn: ChannelConnection, event: Mes
             last_message_at=event.occurred_at,
             last_message_preview=preview(p.content) or f"[{p.message_type}]",
             unread_count=Conversation.unread_count + 1,
-            status="OPEN",
+            # A new customer message reopens the conversation; an owner keeps it.
+            status=case(
+                (Conversation.status.in_(("OPEN", "PENDING", "ASSIGNED")), Conversation.status),
+                (Conversation.assigned_user_id.isnot(None), "ASSIGNED"),
+                else_="OPEN",
+            ),
+            resolved_at=None,
         )
     )
 
@@ -239,7 +261,18 @@ async def process_event(
             return False
         await HANDLERS[type(event)](db, conn, event)
         await db.commit()
-        return True
+    await _notify(event)
+    return True
+
+
+async def _notify(event: ChannelEvent) -> None:
+    """Tell connected browsers what changed (ids only; they refetch through the API)."""
+    if isinstance(event, ConnectionStateEvent):
+        await publish(event.organization_id, "connection.updated", connection_id=event.connection_id)
+    elif isinstance(event, MessageReceivedEvent):
+        await publish(event.organization_id, "message.created", connection_id=event.connection_id)
+    elif isinstance(event, MessageAckEvent):
+        await publish(event.organization_id, "message.updated", connection_id=event.connection_id)
 
 
 async def run(stop: asyncio.Event | None = None) -> None:

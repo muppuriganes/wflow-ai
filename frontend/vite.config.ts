@@ -9,6 +9,19 @@ export default defineConfig({
   // Share the repo-root .env (only VITE_* variables reach the browser).
   envDir: "..",
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
+  build: {
+    rollupOptions: {
+      output: {
+        // Libraries change rarely: separate chunks stay cached across app releases.
+        manualChunks: {
+          react: ["react", "react-dom", "react-router"],
+          ui: ["radix-ui", "sonner", "lucide-react"],
+          forms: ["zod", "react-hook-form", "@hookform/resolvers"],
+          query: ["@tanstack/react-query"],
+        },
+      },
+    },
+  },
   server: { port: 5180, strictPort: true },
   preview: { port: 5180, strictPort: true },
   test: {

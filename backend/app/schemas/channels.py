@@ -56,6 +56,7 @@ class SimulateInbound(BaseModel):
     phone: Annotated[str, StringConstraints(pattern=r"^\+?\d{6,15}$")]
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
     text: Annotated[str, StringConstraints(min_length=1, max_length=4096)]
+    with_image: bool = False
 
 
 class ContactSummary(APIModel):

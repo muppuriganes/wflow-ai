@@ -8,6 +8,7 @@ import { buildEvent, type EventPublisher } from "../events/publisher.js";
 import type { ConnectionStatus } from "../events/types.js";
 import type { Logger } from "../logger.js";
 import { BoundedSet, BoundedMap } from "./bounded.js";
+import { fetchMedia, type MediaUploader } from "./media.js";
 import type { QrStore } from "./qr-store.js";
 
 export type ChannelType = "whatsapp_web" | "simulator";
@@ -44,6 +45,7 @@ export type ManagerOptions = {
   chromeExecutablePath?: string;
   simulatorEnabled: boolean;
   whatsappClientFactory?: ClientFactory;
+  mediaUploader?: MediaUploader;
 };
 
 /**
@@ -170,10 +172,22 @@ export class SessionManager {
           if (this.sessions.get(session.connectionId) === session) this.sessions.delete(session.connectionId);
         }
       },
-      onMessage: (message) => {
+      onMessage: (message, media) => {
         if (session.seenMessages.has(message.provider_message_id)) return;
         session.seenMessages.add(message.provider_message_id);
-        void emit({ event_type: "message.received", payload: message });
+        void (async () => {
+          let payload = message;
+          if (media && this.opts.mediaUploader) {
+            try {
+              const attachmentId = await this.opts.mediaUploader.upload(session.organizationId, session.connectionId, media);
+              payload = { ...message, attachment: { attachment_id: attachmentId } };
+            } catch (err) {
+              // The message is still delivered; the team sees its type and caption without the file.
+              this.log.warn({ err: String(err), connectionId: session.connectionId }, "inbound_media_upload_failed");
+            }
+          }
+          await emit({ event_type: "message.received", payload });
+        })();
       },
       onAck: (providerMessageId, status) => {
         void emit({ event_type: "message.ack", payload: { provider_message_id: providerMessageId, status } });
@@ -205,12 +219,7 @@ export class SessionManager {
     const already = session.sentByClientId.get(clientMessageId);
     if (already) return already; // retried request: do not send twice
 
-    const now = Date.now();
-    session.sendTimestamps = session.sendTimestamps.filter((t) => now - t < 60_000);
-    if (session.sendTimestamps.length >= this.opts.sendLimitPerMinute) {
-      throw new SessionError("Sending limit reached for this connection. Try again in a minute.", "rate_limited", 429);
-    }
-    session.sendTimestamps.push(now);
+    this.takeSendSlot(session);
 
     let providerId: string;
     try {
@@ -229,6 +238,51 @@ export class SessionManager {
       )
       .catch((err: unknown) => this.log.error({ err: String(err) }, "publish_failed"));
     return providerId;
+  }
+
+  async sendMedia(
+    connectionId: string,
+    organizationId: string,
+    chatId: string,
+    media: { url: string; contentType: string; fileName: string; caption?: string },
+    clientMessageId: string,
+  ): Promise<string> {
+    const session = this.get(connectionId, organizationId);
+    const already = session.sentByClientId.get(clientMessageId);
+    if (already) return already;
+    this.takeSendSlot(session);
+    let file;
+    try {
+      file = await fetchMedia(media.url, media.contentType, media.fileName);
+    } catch (err) {
+      throw new SessionError(`Could not load the file: ${String(err).slice(0, 120)}`, "media_unavailable", 502);
+    }
+    let providerId: string;
+    try {
+      providerId = await session.adapter.sendMedia(chatId, file, media.caption);
+    } catch (err) {
+      if (err instanceof AdapterError) throw new SessionError(err.message, err.code, 409);
+      throw err;
+    }
+    session.sentByClientId.set(clientMessageId, providerId);
+    await this.publisher
+      .publish(
+        buildEvent(organizationId, connectionId, {
+          event_type: "message.sent",
+          payload: { provider_message_id: providerId, client_message_id: clientMessageId },
+        }),
+      )
+      .catch((err: unknown) => this.log.error({ err: String(err) }, "publish_failed"));
+    return providerId;
+  }
+
+  private takeSendSlot(session: Session): void {
+    const now = Date.now();
+    session.sendTimestamps = session.sendTimestamps.filter((t) => now - t < 60_000);
+    if (session.sendTimestamps.length >= this.opts.sendLimitPerMinute) {
+      throw new SessionError("Sending limit reached for this connection. Try again in a minute.", "rate_limited", 429);
+    }
+    session.sendTimestamps.push(now);
   }
 
   async stop(connectionId: string): Promise<void> {

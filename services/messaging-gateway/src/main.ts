@@ -4,6 +4,7 @@ import { RedisStreamPublisher } from "./events/publisher.js";
 import { buildServer } from "./http/server.js";
 import { createLogger, type Logger } from "./logger.js";
 import { type ChannelType, SessionManager } from "./sessions/manager.js";
+import { BackendMediaUploader } from "./sessions/media.js";
 import { RedisQrStore } from "./sessions/qr-store.js";
 
 type RestoreItem = { connection_id: string; organization_id: string; channel_type: ChannelType };
@@ -51,6 +52,7 @@ async function main(): Promise<void> {
       puppeteerArgs: config.PUPPETEER_ARGS.split(",").map((a) => a.trim()).filter(Boolean),
       chromeExecutablePath: config.CHROME_EXECUTABLE_PATH,
       simulatorEnabled: config.SIMULATOR_ENABLED,
+      mediaUploader: new BackendMediaUploader(config.BACKEND_INTERNAL_URL, config.INTERNAL_API_TOKEN),
     },
     log,
   );

@@ -8,6 +8,7 @@ import type { WAClient } from "../adapters/whatsapp-web.js";
 import { MemoryPublisher } from "../events/publisher.js";
 import type { ChannelEvent } from "../events/types.js";
 import { SessionManager } from "./manager.js";
+import { MemoryMediaUploader } from "./media.js";
 import { MemoryQrStore } from "./qr-store.js";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
@@ -252,5 +253,72 @@ describe("sessionDir", () => {
     expect(parts).toHaveLength(2);
     for (const part of parts) expect(part).toMatch(/^[0-9a-f]{16}$/);
     expect(m.sessionDir(OTHER_ORG, CONN)).not.toBe(a);
+  });
+});
+
+describe("media", () => {
+  const setup = (uploader: MemoryMediaUploader) => {
+    const publisher = new MemoryPublisher();
+    const client = new FakeClient();
+    const manager = new SessionManager(
+      publisher,
+      new MemoryQrStore(),
+      { sessionRoot: os.tmpdir(), maxSessions: 5, sendLimitPerMinute: 10, qrMaxRetries: 3, puppeteerArgs: [], simulatorEnabled: true, whatsappClientFactory: () => client, mediaUploader: uploader },
+      pino({ level: "silent" }),
+    );
+    return { publisher, client, manager };
+  };
+  const photo = {
+    id: { _serialized: "false_1@c.us_PHOTO" }, from: "919800000001@c.us", body: "my receipt", type: "image",
+    timestamp: 1_790_000_000, fromMe: false, isStatus: false, hasMedia: true,
+    downloadMedia: async () => ({ mimetype: "image/png", data: Buffer.from("png-bytes").toString("base64"), filename: "r.png" }),
+  };
+
+  it("uploads inbound media before announcing the message", async () => {
+    const uploader = new MemoryMediaUploader();
+    const { publisher, client, manager } = setup(uploader);
+    await manager.start(CONN, ORG, "whatsapp_web");
+    client.emit("ready");
+    client.emit("message", photo);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(uploader.uploads).toHaveLength(1);
+    expect(uploader.uploads[0]!.media.data.toString()).toBe("png-bytes");
+    const received = publisher.events.find((e) => e.event_type === "message.received")!;
+    expect(received.payload).toMatchObject({ message_type: "image", content: "my receipt", attachment: { attachment_id: expect.any(String) } });
+  });
+
+  it("still delivers the message when the upload fails", async () => {
+    const uploader = new MemoryMediaUploader();
+    uploader.fail = true;
+    const { publisher, client, manager } = setup(uploader);
+    await manager.start(CONN, ORG, "whatsapp_web");
+    client.emit("ready");
+    client.emit("message", photo);
+    await new Promise((r) => setTimeout(r, 20));
+    const received = publisher.events.find((e) => e.event_type === "message.received")!;
+    expect(received.payload).not.toHaveProperty("attachment");
+  });
+
+  it("rejects non-http media URLs and reports them as unavailable", async () => {
+    const { client, manager } = setup(new MemoryMediaUploader());
+    await manager.start(CONN, ORG, "whatsapp_web");
+    client.emit("ready");
+    await expect(
+      manager.sendMedia(CONN, ORG, "1@c.us", { url: "file:///etc/passwd", contentType: "image/png", fileName: "x.png" }, "client-0009"),
+    ).rejects.toMatchObject({ code: "media_unavailable" });
+    expect(client.sent).toHaveLength(0);
+  });
+
+  it("simulator: inbound photo goes through the uploader with a real PNG", async () => {
+    const uploader = new MemoryMediaUploader();
+    const { manager } = setup(uploader);
+    await manager.start(CONN, ORG, "simulator");
+    await new Promise((r) => setTimeout(r, 350));
+    manager.simulator(CONN).scan();
+    await new Promise((r) => setTimeout(r, 350));
+    manager.simulator(CONN).inbound("919800000001", "Ravi", "photo", true);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(uploader.uploads[0]!.media.data.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    await manager.shutdown();
   });
 });

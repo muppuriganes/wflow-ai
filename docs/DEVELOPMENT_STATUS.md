@@ -1,6 +1,6 @@
 # Development status
 
-_Last updated: 2026-11-02 — end of M2._
+_Last updated: 2026-11-02 — end of M3._
 
 ## Working now (implemented, tested, verified in the browser)
 
@@ -23,23 +23,36 @@ _Last updated: 2026-11-02 — end of M2._
 | Governance | Customer-initiated replies only; STOP/START opt-out; per-connection send limits; idempotent sends; risk acknowledgement before linking WhatsApp |
 | UI | Channels list, add channel (with risk notice), connection page (QR, status, reconnect/logout/remove, connection log, simulator controls), basic per-channel conversations with replies |
 
+### M3 — Inbox & CRM
+| Area | Details |
+|---|---|
+| Team inbox | Views (mine / unassigned / all open / resolved / archived) with counts, search, channel/tag/priority filters, three-pane layout, phone layout |
+| Conversation handling | Assign (self-claim with `inbox.reply`, reassign with `inbox.assign`, only to members who can use the inbox), status, priority, resolve/reopen (a new customer message reopens and keeps the owner), human takeover flag, assignment history |
+| Internal notes | Per conversation, team-only, with author and time |
+| Attachments | Send images/PDF/Office/text/audio/video up to 16 MB (type detected from bytes, names sanitized); inbound WhatsApp media uploaded by the gateway; files in MinIO under the org prefix; short-lived signed links |
+| Live updates | Server-Sent Events per organization over Redis pub/sub (ids only, clients refetch); "Live" indicator; slow polling fallback |
+| Contacts | Create (phone normalised; dedupe by phone; links future WhatsApp messages), edit, soft delete, search, tags, manual opt-out, timeline with notes |
+| Custom fields | Per-organization definitions for contacts and leads (text, number, date, list, yes/no; required; archive), validated server-side |
+| Leads | Fixed 7-stage pipeline board with drag and drop, totals per stage, owner, value/currency, score, expected close, lost reason; stage changes recorded on the timeline |
+| Tasks | Follow-ups with timezone-aware due dates (viewer-local "today"), assignee, links to contact/lead/conversation; overdue/today/upcoming/done filters |
+
 ## Test results (actually executed 2026-11-02)
-- Backend: `uv run pytest` → **39 passed** (M1 + 11 channel/messaging tests incl. tenant isolation, idempotency, governance).
-- Gateway: `npm test` → **21 passed** (QR lifecycle, failures, normalization, dedupe, rate limits, tenant checks, HTTP auth).
-- Frontend: `npm test` → **14 passed**; `npm run build` passes.
+- Backend: `uv run pytest` → **48 passed** (incl. 5 inbox and 4 CRM tests: views/counts/reopen, assignment permissions, read-only viewer, attachments in/out, live notifications, contact dedupe/merge, custom fields, pipeline/tasks, CRM isolation).
+- Gateway: `npm test` → **25 passed** (adds inbound/outbound media).
+- Frontend: `npm test` → **17 passed** (adds SSE stream parser); `npm run build` passes with per-route code splitting.
 - Manual: real services (API + gateway + worker + Redis + Postgres) driven from the browser — simulator end to end;
   WhatsApp Web start → live QR → cancel (session wiped); gateway crash → restore; role restrictions.
+  M3: simulator customer photo → inbox (live) → assign → reply → internal note → create lead → move stage → contact timeline → task; phone layout.
 
 ## Not built yet
-Team inbox with assignment/notes/tags/real-time push (M3), CRM & leads (M3), media attachments (M3),
-workflows (M4), schedules/templates/analytics (M5), integrations/billing/Super Admin console (M6), AI track.
+Workflows (M4), schedules/templates/analytics (M5), integrations/billing/Super Admin console (M6), AI track.
 
 ## Known limitations
 - Real WhatsApp linking needs a phone scan — please test with a spare number (see WHATSAPP_CONNECTOR.md risks).
-- Agent Operators can reply via the API but the Channels page requires `connections.read`; their conversation view arrives with the M3 inbox.
-- UI updates by polling (2–15 s); WebSocket/SSE push comes in M3.
-- Media messages are stored as type + caption only (no file download yet).
+- Live updates use SSE; behind proxies that buffer responses, configure no buffering for `/events/stream` (nginx: `X-Accel-Buffering: no` is sent).
+- Stickers, locations and contact cards are stored as type only; voice notes and media over 16 MB arrive without the file.
+- Lead pipeline stages are fixed (no per-organization pipelines yet). Drag and drop needs a pointer; keyboard users change the stage in the lead dialog.
+- The backend uses the MinIO root credentials locally; production should use a bucket-scoped access key (`S3_ACCESS_KEY`/`S3_SECRET_KEY`).
 - WhatsApp session data is protected by folder isolation, not encryption at rest (see WHATSAPP_CONNECTOR.md).
 - `npm audit` reports a high-severity issue in `basic-ftp`, pulled in by puppeteer's proxy support; the gateway never uses FTP.
 - Emails are sent inside the request (no queued retries yet). Org deletion is soft; no purge job yet.
-- Production bundle is a single ~570 KB chunk; route-level code splitting is planned.

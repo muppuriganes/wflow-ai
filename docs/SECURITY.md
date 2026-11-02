@@ -27,6 +27,14 @@
 - Gateway logs redact message text, QR data and tokens.
 - Governance rules (opt-out, customer-initiated, rate limits, idempotent sends) are enforced in the backend.
 
+## Inbox & CRM (M3)
+- File uploads: 16 MB cap, type from magic bytes (client name/type ignored), allow-list of formats, sanitized
+  file names, org-prefixed storage keys, signed links that expire after 5 minutes.
+- Live stream carries ids only; stream requires `inbox.read`, ends at token lifetime; DB connection released.
+- Assignment only to active members whose role can read the inbox; reassigning others needs `inbox.assign`.
+- Custom field values validated against definitions (unknown keys rejected); contact timeline append-only.
+- CRM cross-tenant access returns 404 (tested), including creating a lead for another org's contact.
+
 ## Planned
 - CSP for the SPA (with nginx in production), MFA (TOTP), account lockout after repeated failures,
   credential encryption at rest for integrations (M6) and WhatsApp session data (RemoteAuth store),

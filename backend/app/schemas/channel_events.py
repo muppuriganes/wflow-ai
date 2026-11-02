@@ -43,6 +43,12 @@ class ConnectionStateEvent(_Envelope):
     payload: ConnectionStatePayload
 
 
+class AttachmentRef(BaseModel):
+    """A file the gateway already uploaded through /internal/channels/media."""
+
+    attachment_id: uuid.UUID
+
+
 class MessageReceivedPayload(BaseModel):
     provider_message_id: str = Field(max_length=200)
     chat_id: str = Field(max_length=100)
@@ -53,6 +59,7 @@ class MessageReceivedPayload(BaseModel):
     content: str | None = Field(default=None, max_length=65536)
     is_group: bool = False
     provider_timestamp: datetime | None = None
+    attachment: AttachmentRef | None = None
 
 
 class MessageReceivedEvent(_Envelope):

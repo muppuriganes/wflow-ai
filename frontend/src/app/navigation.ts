@@ -23,18 +23,15 @@ export type NavItem = {
   to: string;
   label: string;
   icon: LucideIcon;
+  /** Other paths that belong to this section (highlight the item there too). */
+  also?: string[];
   /** Set while the module is not built yet: the page shows an honest "coming" state. */
   milestone?: { id: string; summary: string };
 };
 
 export const workspaceNav: NavItem[] = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
-  {
-    to: "/inbox",
-    label: "Inbox",
-    icon: Inbox,
-    milestone: { id: "M3", summary: "Unified, real-time inbox with assignment, notes, tags and human takeover." },
-  },
+  { to: "/inbox", label: "Inbox", icon: Inbox },
   { to: "/channels", label: "Channels", icon: MessageCircle },
   {
     to: "/workflows",
@@ -60,12 +57,7 @@ export const workspaceNav: NavItem[] = [
     icon: BookOpen,
     milestone: { id: "AI", summary: "Document upload and retrieval for AI answers. Planned with the AI track." },
   },
-  {
-    to: "/contacts",
-    label: "Contacts & CRM",
-    icon: Contact,
-    milestone: { id: "M3", summary: "Contacts, custom fields, lead pipeline and follow-up tasks." },
-  },
+  { to: "/contacts", label: "Contacts & CRM", icon: Contact, also: ["/leads", "/tasks"] },
   {
     to: "/schedules",
     label: "Schedules",

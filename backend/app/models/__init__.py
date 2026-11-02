@@ -1,4 +1,5 @@
 from app.models.channels import ChannelConnection, ChannelEvent
+from app.models.crm import CustomerActivity, CustomFieldDefinition, FollowUpTask, Lead
 from app.models.governance import AuditLog
 from app.models.identity import (
     Invitation,
@@ -11,9 +12,27 @@ from app.models.identity import (
     User,
     UserActionToken,
 )
-from app.models.messaging import Contact, Conversation, Message
+from app.models.messaging import (
+    Contact,
+    ContactTag,
+    Conversation,
+    ConversationAssignment,
+    ConversationNote,
+    Message,
+    MessageAttachment,
+    Tag,
+)
 
 __all__ = [
+    "ContactTag",
+    "ConversationAssignment",
+    "ConversationNote",
+    "CustomFieldDefinition",
+    "CustomerActivity",
+    "FollowUpTask",
+    "Lead",
+    "MessageAttachment",
+    "Tag",
     "AuditLog",
     "ChannelConnection",
     "ChannelEvent",

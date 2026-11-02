@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { createBrowserRouter, Navigate, useLocation } from "react-router";
 import { Spinner } from "@/components/ui/states";
 import { AppLayout } from "@/layouts/AppLayout";
@@ -8,16 +8,10 @@ import { LoginPage } from "@/modules/auth/LoginPage";
 import { RegisterPage } from "@/modules/auth/RegisterPage";
 import { ResetPasswordPage } from "@/modules/auth/ResetPasswordPage";
 import { VerifyEmailPage } from "@/modules/auth/VerifyEmailPage";
-import { ChannelsPage } from "@/modules/channels/ChannelsPage";
-import { ConnectionDetailPage } from "@/modules/channels/ConnectionDetailPage";
 import { ComingSoonPage } from "@/modules/coming-soon/ComingSoonPage";
 import { OverviewPage } from "@/modules/dashboard/OverviewPage";
 import { NotFoundPage } from "@/modules/NotFoundPage";
 import { RouteErrorPage } from "@/modules/RouteErrorPage";
-import { OrganizationPage } from "@/modules/settings/OrganizationPage";
-import { SecurityPage } from "@/modules/settings/SecurityPage";
-import { SettingsPage } from "@/modules/settings/SettingsPage";
-import { TeamPage } from "@/modules/settings/TeamPage";
 import { useAuth } from "@/stores/auth";
 import { workspaceNav } from "./navigation";
 
@@ -51,6 +45,11 @@ function GuestOnly({ children }: { children: ReactNode }) {
   return children;
 }
 
+/** Route-level code splitting: each screen's code loads the first time it is opened. */
+function page<M extends Record<string, unknown>>(load: () => Promise<M>, name: keyof M) {
+  return async () => ({ Component: (await load())[name] as ComponentType });
+}
+
 const comingSoonRoutes = workspaceNav
   .filter((item) => item.milestone)
   .map((item) => ({ path: item.to.slice(1), element: <ComingSoonPage item={item} /> }));
@@ -75,12 +74,18 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <OverviewPage /> },
       ...comingSoonRoutes,
-      { path: "channels", element: <ChannelsPage /> },
-      { path: "channels/:connectionId", element: <ConnectionDetailPage /> },
-      { path: "organization", element: <OrganizationPage /> },
-      { path: "team", element: <TeamPage /> },
-      { path: "security", element: <SecurityPage /> },
-      { path: "settings", element: <SettingsPage /> },
+      { path: "inbox", lazy: page(() => import("@/modules/inbox/InboxPage"), "InboxPage") },
+      { path: "inbox/:conversationId", lazy: page(() => import("@/modules/inbox/InboxPage"), "InboxPage") },
+      { path: "contacts", lazy: page(() => import("@/modules/crm/ContactsPage"), "ContactsPage") },
+      { path: "contacts/:contactId", lazy: page(() => import("@/modules/crm/ContactDetailPage"), "ContactDetailPage") },
+      { path: "leads", lazy: page(() => import("@/modules/crm/LeadsPage"), "LeadsPage") },
+      { path: "tasks", lazy: page(() => import("@/modules/crm/TasksPage"), "TasksPage") },
+      { path: "channels", lazy: page(() => import("@/modules/channels/ChannelsPage"), "ChannelsPage") },
+      { path: "channels/:connectionId", lazy: page(() => import("@/modules/channels/ConnectionDetailPage"), "ConnectionDetailPage") },
+      { path: "organization", lazy: page(() => import("@/modules/settings/OrganizationPage"), "OrganizationPage") },
+      { path: "team", lazy: page(() => import("@/modules/settings/TeamPage"), "TeamPage") },
+      { path: "security", lazy: page(() => import("@/modules/settings/SecurityPage"), "SecurityPage") },
+      { path: "settings", lazy: page(() => import("@/modules/settings/SettingsPage"), "SettingsPage") },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

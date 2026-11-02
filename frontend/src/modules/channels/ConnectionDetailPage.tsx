@@ -29,6 +29,7 @@ const inboundSchema = z.object({
   phone: z.string().regex(/^\+?\d{6,15}$/, "Digits only, with country code"),
   name: z.string().trim().min(1, "Enter a name").max(100),
   text: z.string().trim().min(1, "Enter a message").max(4096),
+  with_image: z.boolean(),
 });
 
 function SimulatorCard({ connection }: { connection: Connection }) {
@@ -47,7 +48,7 @@ function SimulatorCard({ connection }: { connection: Connection }) {
     formState: { errors, isSubmitting },
   } = useForm<z.infer<typeof inboundSchema>>({
     resolver: zodResolver(inboundSchema),
-    defaultValues: { phone: "919800000001", name: "Test Customer", text: "" },
+    defaultValues: { phone: "919800000001", name: "Test Customer", text: "", with_image: false },
   });
   const onInbound = handleSubmit(async (values) => {
     try {
@@ -90,6 +91,10 @@ function SimulatorCard({ connection }: { connection: Connection }) {
             <Button type="submit" variant="secondary" loading={isSubmitting}>
               Send as customer
             </Button>
+            <label className="flex items-center gap-2 text-xs sm:col-span-4">
+              <input type="checkbox" className="accent-[var(--color-primary)]" {...register("with_image")} />
+              Attach a sample photo
+            </label>
           </form>
         ) : (
           connection.status !== "QR_PENDING" && <p className="text-xs text-muted">Connect the simulator to send test customer messages.</p>

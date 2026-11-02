@@ -1,6 +1,6 @@
 import { Building2, Check, ChevronsUpDown, LogOut, Menu, Plus, Settings, X } from "lucide-react";
 import { useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router";
+import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from "react-router";
 import { adminNav, type NavItem, workspaceNav } from "@/app/navigation";
 import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
@@ -16,11 +16,13 @@ import { ErrorState, Spinner } from "@/components/ui/states";
 import { CreateOrganizationDialog } from "@/modules/settings/CreateOrganizationDialog";
 import { errorMessage } from "@/services/api";
 import { useAuth } from "@/stores/auth";
+import { LiveUpdatesProvider, useLive } from "@/stores/live";
 import { OrganizationProvider, useOrganization } from "@/stores/organization";
 import { cn } from "@/utils/cn";
 import { VerifyEmailBanner } from "./VerifyEmailBanner";
 
 function NavSection({ title, items, onNavigate }: { title: string; items: NavItem[]; onNavigate: () => void }) {
+  const { pathname } = useLocation();
   return (
     <div>
       <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-subtle">{title}</p>
@@ -34,7 +36,8 @@ function NavSection({ title, items, onNavigate }: { title: string; items: NavIte
               className={({ isActive }) =>
                 cn(
                   "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-muted hover:bg-surface-muted hover:text-foreground",
-                  isActive && "bg-primary-soft font-medium text-primary hover:bg-primary-soft hover:text-primary",
+                  (isActive || item.also?.some((p) => pathname.startsWith(p))) &&
+                    "bg-primary-soft font-medium text-primary hover:bg-primary-soft hover:text-primary",
                 )
               }
             >
@@ -91,6 +94,18 @@ function OrgSwitcher({ onCreate }: { onCreate: () => void }) {
   );
 }
 
+function LiveIndicator() {
+  const live = useLive();
+  const { can } = useOrganization();
+  if (!can("inbox.read")) return null;
+  return (
+    <span className="hidden items-center gap-1.5 text-[11px] text-muted sm:inline-flex" title={live ? "Updates arrive instantly" : "Reconnecting — updates may be delayed"}>
+      <span className={cn("size-1.5 rounded-full", live ? "bg-success" : "bg-warning")} aria-hidden />
+      {live ? "Live" : "Connecting"}
+    </span>
+  );
+}
+
 function UserMenu() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -137,6 +152,7 @@ function Shell() {
   const { current, isLoading, error, refetch, organizations } = useOrganization();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const fullBleed = useMatch("/inbox/*") !== null;
 
   if (isLoading) {
     return (
@@ -187,14 +203,24 @@ function Shell() {
             <Menu />
           </Button>
           <div className="hidden text-xs text-muted lg:block">{current.name}</div>
-          <UserMenu />
+          <div className="flex items-center gap-3">
+            <LiveIndicator />
+            <UserMenu />
+          </div>
         </header>
         <VerifyEmailBanner />
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
+        {fullBleed ? (
+          // Workspace screens like the inbox manage their own panes and scrolling.
+          <main className="min-h-0 flex-1 overflow-hidden">
             <Outlet />
-          </div>
-        </main>
+          </main>
+        ) : (
+          <main className="flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
+              <Outlet />
+            </div>
+          </main>
+        )}
       </div>
       <CreateOrganizationDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
@@ -236,7 +262,9 @@ function NoOrganization({
 export function AppLayout() {
   return (
     <OrganizationProvider>
-      <Shell />
+      <LiveUpdatesProvider>
+        <Shell />
+      </LiveUpdatesProvider>
     </OrganizationProvider>
   );
 }

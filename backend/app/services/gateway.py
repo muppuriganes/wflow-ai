@@ -43,6 +43,18 @@ class Gateway(Protocol):
         text: str,
         client_message_id: str,
     ) -> SendResult: ...
+    async def send_media(
+        self,
+        connection_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        chat_id: str,
+        *,
+        media_url: str,
+        file_name: str,
+        content_type: str,
+        caption: str | None,
+        client_message_id: str,
+    ) -> SendResult: ...
     async def simulate(self, connection_id: uuid.UUID, action: str, payload: dict[str, Any]) -> None: ...
 
 
@@ -104,6 +116,34 @@ class HTTPGateway:
                 "organization_id": str(organization_id),
                 "chat_id": chat_id,
                 "text": text,
+                "client_message_id": client_message_id,
+            },
+        )
+        return SendResult(provider_message_id=str(body["provider_message_id"]))
+
+    async def send_media(
+        self,
+        connection_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        chat_id: str,
+        *,
+        media_url: str,
+        file_name: str,
+        content_type: str,
+        caption: str | None,
+        client_message_id: str,
+    ) -> SendResult:
+        """The gateway downloads the file from a short-lived signed URL (no storage credentials)."""
+        body = await self._call(
+            "POST",
+            f"/v1/connections/{connection_id}/media",
+            {
+                "organization_id": str(organization_id),
+                "chat_id": chat_id,
+                "media_url": media_url,
+                "file_name": file_name,
+                "content_type": content_type,
+                "caption": caption,
                 "client_message_id": client_message_id,
             },
         )

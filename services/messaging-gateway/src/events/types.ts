@@ -36,6 +36,8 @@ export type MessageReceivedPayload = {
   content?: string;
   is_group: boolean;
   provider_timestamp?: string;
+  /** Set when the file was uploaded to the backend before this event was published. */
+  attachment?: { attachment_id: string };
 };
 
 export type MessageSentPayload = { provider_message_id: string; client_message_id: string };

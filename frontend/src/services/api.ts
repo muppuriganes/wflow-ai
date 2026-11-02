@@ -42,6 +42,10 @@ export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
 /** Called whenever a refresh succeeds or the session ends, so UI state stays in sync. */
 export function onSessionChange(listener: (session: TokenResponse | null) => void): void {
   sessionListener = listener;
@@ -95,20 +99,22 @@ export function refreshSession(): Promise<TokenResponse | null> {
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
+  /** Multipart upload; the browser sets the Content-Type boundary. */
+  form?: FormData;
   /** Send the access token (default true). */
   auth?: boolean;
   signal?: AbortSignal;
 };
 
-export async function api<T>(path: string, { method = "GET", body, auth = true, signal }: RequestOptions = {}): Promise<T> {
+export async function api<T>(path: string, { method = "GET", body, form, auth = true, signal }: RequestOptions = {}): Promise<T> {
   const send = () => {
     const headers: Record<string, string> = {};
-    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (body !== undefined && !form) headers["Content-Type"] = "application/json";
     if (auth && accessToken) headers.Authorization = `Bearer ${accessToken}`;
     return fetch(`${API_BASE_URL}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: form ?? (body === undefined ? undefined : JSON.stringify(body)),
       credentials: "include",
       signal,
     });

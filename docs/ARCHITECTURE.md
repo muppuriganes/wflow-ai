@@ -55,6 +55,22 @@ normalized channel event format, so the connector can be swapped (e.g. for the o
 Implemented in M2 — see WHATSAPP_CONNECTOR.md. Events travel over a Redis Stream consumed by a backend
 worker with idempotent handlers; commands go to the gateway over authenticated internal HTTP.
 
+### ADR-007 — Fixed lead pipeline
+Lead stages (NEW → CONVERTED/LOST) are an enumeration, not per-tenant data: reports and workflow
+conditions can rely on them. Custom pipelines can be added later as a separate concept.
+
+### ADR-008 — Live updates with Server-Sent Events
+The browser opens `GET /organizations/{id}/events/stream` with `fetch` (so the access token travels in the
+Authorization header). Services publish "what changed" (ids only) to a Redis channel per organization after
+commit; the client invalidates the affected queries and refetches through the normal API, so permissions and
+RLS apply to everything displayed. Streams end at the access-token lifetime and reconnect with a fresh token.
+One-directional push is all the UI needs, so SSE was chosen over WebSockets (simpler proxies, no extra protocol).
+
+### ADR-009 — Files
+Uploads are validated by content sniffing, stored in S3-compatible storage under `<org_id>/attachments/…`,
+and served with 5-minute signed links. The gateway never holds storage credentials: outbound media is fetched
+from a signed link; inbound media is POSTed to an internal backend endpoint before the message event.
+
 ### ADR-005 — AI is a later track
 Per product decision, AI (model router, RAG, agents) is deferred until the core platform is complete.
 pgvector is installed now; AI menu items show an honest "not available yet" state.

@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { AdapterError, type AdapterHooks, type ChannelAdapter } from "./types.js";
+import { AdapterError, type AdapterHooks, type ChannelAdapter, type MediaFile } from "./types.js";
+
+// A small generated PNG (purple frame) used for simulated customer photos.
+const SAMPLE_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAQ0lEQVR42u3XQQ0AMAgEQeTUHIJRQ01A0jRzWQHzvchTTxVAQEBAQEALoB4aEBAQEBAQEBAQEBAQkOcKBAQEBPQd6ALngWCxlnXdVgAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 /**
  * A fake channel for development, demos and automated tests. It follows exactly the same event
@@ -43,7 +49,7 @@ export class SimulatorAdapter implements ChannelAdapter {
   }
 
   /** A customer sends a message to the simulated number. */
-  inbound(phone: string, name: string, text: string): void {
+  inbound(phone: string, name: string, text: string, withImage = false): void {
     if (this.status !== "connected") throw new AdapterError("Simulator is not connected", "not_connected");
     const digits = phone.replace(/\D/g, "");
     const chatId = `${digits}@c.us`;
@@ -53,11 +59,15 @@ export class SimulatorAdapter implements ChannelAdapter {
       sender: chatId,
       sender_name: name,
       sender_phone: digits,
-      message_type: "text",
+      message_type: withImage ? "image" : "text",
       content: text,
       is_group: false,
       provider_timestamp: new Date().toISOString(),
-    });
+    }, withImage ? { data: SAMPLE_PNG, mimetype: "image/png", filename: "photo.png" } : undefined);
+  }
+
+  async sendMedia(chatId: string, _media: MediaFile): Promise<string> {
+    return this.sendText(chatId);
   }
 
   async sendText(chatId: string): Promise<string> {

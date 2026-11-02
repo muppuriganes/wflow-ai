@@ -23,6 +23,16 @@ const inboundBody = z.object({
   phone: z.string().regex(/^\+?\d{6,15}$/),
   name: z.string().min(1).max(100),
   text: z.string().min(1).max(4096),
+  with_image: z.boolean().default(false),
+});
+const mediaBody = z.object({
+  organization_id: uuid,
+  chat_id: z.string().regex(/^[\w.-]+@(c|g)\.us$/, "Invalid chat id"),
+  media_url: z.url(),
+  file_name: z.string().min(1).max(255),
+  content_type: z.string().min(3).max(100),
+  caption: z.string().max(1024).nullish(),
+  client_message_id: z.string().min(8).max(64),
 });
 
 function tokenMatches(header: string | undefined, expected: string): boolean {
@@ -86,6 +96,19 @@ export function buildServer(manager: SessionManager, opts: { token: string; simu
     return { provider_message_id: providerMessageId };
   });
 
+  app.post("/v1/connections/:id/media", async (req) => {
+    const { id } = idParams.parse(req.params);
+    const body = mediaBody.parse(req.body);
+    const providerMessageId = await manager.sendMedia(
+      id,
+      body.organization_id,
+      body.chat_id,
+      { url: body.media_url, contentType: body.content_type, fileName: body.file_name, caption: body.caption ?? undefined },
+      body.client_message_id,
+    );
+    return { provider_message_id: providerMessageId };
+  });
+
   if (opts.simulatorEnabled) {
     app.post("/v1/simulator/:id/scan", async (req, reply) => {
       manager.simulator(idParams.parse(req.params).id).scan();
@@ -93,7 +116,7 @@ export function buildServer(manager: SessionManager, opts: { token: string; simu
     });
     app.post("/v1/simulator/:id/inbound", async (req, reply) => {
       const body = inboundBody.parse(req.body);
-      manager.simulator(idParams.parse(req.params).id).inbound(body.phone, body.name, body.text);
+      manager.simulator(idParams.parse(req.params).id).inbound(body.phone, body.name, body.text, body.with_image);
       return reply.code(202).send({ status: "delivered" });
     });
   }

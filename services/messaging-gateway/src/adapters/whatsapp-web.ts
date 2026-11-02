@@ -2,7 +2,12 @@ import { EventEmitter } from "node:events";
 import wweb from "whatsapp-web.js";
 import type { Logger } from "../logger.js";
 import { isCustomerMessage, mapAck, normalizeMessage, type RawMessage } from "./normalize.js";
-import { AdapterError, type AdapterHooks, type ChannelAdapter } from "./types.js";
+import { AdapterError, type AdapterHooks, type ChannelAdapter, MAX_MEDIA_BYTES, type MediaFile } from "./types.js";
+
+type WAMessage = RawMessage & {
+  getContact?: () => Promise<{ pushname?: string; name?: string; number?: string }>;
+  downloadMedia?: () => Promise<{ mimetype: string; data: string; filename?: string | null } | undefined>;
+};
 
 /** The parts of whatsapp-web.js `Client` this adapter uses; tests supply a fake. */
 export interface WAClient extends EventEmitter {
@@ -10,7 +15,11 @@ export interface WAClient extends EventEmitter {
   initialize(): Promise<void>;
   destroy(): Promise<void>;
   logout(): Promise<void>;
-  sendMessage(chatId: string, content: string): Promise<{ id: { _serialized: string } }>;
+  sendMessage(
+    chatId: string,
+    content: unknown,
+    options?: { caption?: string; sendMediaAsDocument?: boolean },
+  ): Promise<{ id: { _serialized: string } }>;
 }
 
 export type ClientOptions = { sessionDir: string; qrMaxRetries: number; puppeteerArgs: string[]; executablePath?: string };
@@ -82,7 +91,7 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
       }
       void client.destroy().catch(() => undefined);
     });
-    client.on("message", (msg: RawMessage & { getContact?: () => Promise<{ pushname?: string; name?: string; number?: string }> }) => {
+    client.on("message", (msg: WAMessage) => {
       if (!isCustomerMessage(msg)) return;
       void (async () => {
         let contact: { name?: string; phone?: string } | undefined;
@@ -92,13 +101,43 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
         } catch {
           // Contact lookup is best-effort; the sender id is still recorded.
         }
-        this.hooks.onMessage(normalizeMessage(msg, contact));
+        this.hooks.onMessage(normalizeMessage(msg, contact), await this.download(msg));
       })();
     });
     client.on("message_ack", (msg: RawMessage, ack: number) => {
       const status = mapAck(ack);
       if (msg.fromMe && status) this.hooks.onAck(msg.id._serialized, status);
     });
+  }
+
+  /** Media is fetched from WhatsApp only for customer messages; failures keep the message without the file. */
+  private async download(msg: WAMessage): Promise<MediaFile | undefined> {
+    if (!msg.hasMedia || !msg.downloadMedia) return undefined;
+    try {
+      const media = await msg.downloadMedia();
+      if (!media?.data) return undefined;
+      const data = Buffer.from(media.data, "base64");
+      if (data.length > MAX_MEDIA_BYTES) {
+        this.log.warn({ size: data.length }, "inbound_media_too_large");
+        return undefined;
+      }
+      return { data, mimetype: media.mimetype, filename: media.filename ?? undefined };
+    } catch (err) {
+      this.log.warn({ err: String(err) }, "inbound_media_download_failed");
+      return undefined;
+    }
+  }
+
+  async sendMedia(chatId: string, media: MediaFile, caption?: string): Promise<string> {
+    if (!this.client || !this.connected) throw new AdapterError("Channel is not connected", "not_connected");
+    const payload = new wweb.MessageMedia(media.mimetype, media.data.toString("base64"), media.filename ?? null, media.data.length);
+    const asDocument = !/^(image|video|audio)\//.test(media.mimetype);
+    try {
+      const sent = await this.client.sendMessage(chatId, payload, { caption: caption || undefined, sendMediaAsDocument: asDocument });
+      return sent.id._serialized;
+    } catch (err) {
+      throw new AdapterError(`WhatsApp rejected the file: ${String(err).slice(0, 200)}`, "send_failed");
+    }
   }
 
   async sendText(chatId: string, text: string): Promise<string> {

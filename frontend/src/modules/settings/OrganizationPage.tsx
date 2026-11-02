@@ -15,6 +15,7 @@ import { errorMessage } from "@/services/api";
 import { orgApi } from "@/services/organizations";
 import { useAuth } from "@/stores/auth";
 import { orgKeys, useCurrentOrg, useOrganization } from "@/stores/organization";
+import { CustomFieldsCard } from "./CustomFieldsCard";
 import { formatDate, timezones } from "@/utils/format";
 
 const schema = z.object({
@@ -113,6 +114,8 @@ export function OrganizationPage() {
             )}
           </form>
         </Card>
+
+        <CustomFieldsCard />
 
         <Card className="border-danger/25">
           <CardHeader title="Danger zone" />

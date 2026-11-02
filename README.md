@@ -5,7 +5,7 @@
 Multi-tenant business automation SaaS: WhatsApp connectivity, unified inbox, CRM, visual workflows —
 with AI agents planned as a later track.
 
-> **Status:** M0 (setup), M1 (foundation) and M2 (channels & messaging) are complete. See
+> **Status:** M0–M3 are complete: foundation, WhatsApp channels & messaging, team inbox and CRM. See
 > [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md) for exactly what works today.
 
 ## Stack

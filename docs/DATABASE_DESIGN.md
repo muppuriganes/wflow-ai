@@ -71,6 +71,23 @@ All five tables use the uniform tenant policy `organization_id = app_current_org
 `channel_connections_to_restore()` (`SECURITY DEFINER`) returns only `(id, organization_id, channel_type)`
 of in-progress/active connections so the gateway can resume them after a restart.
 
+## Inbox & CRM (M3)
+
+| Table | Notes |
+|---|---|
+| `conversations` (+) | `priority`, `assigned_user_id`, `automation_paused` (human takeover), `resolved_at` |
+| `contacts` (+) | `email`, `company`, `custom_fields` JSONB (validated against definitions), `deleted_at` |
+| `message_attachments` | `storage_key` (org-prefixed, unique), name, type, size; `message_id` nullable until the gateway's event links it |
+| `conversation_notes` | Internal notes |
+| `conversation_assignments` | Assignment history |
+| `tags`, `contact_tags` | Unique tag name per org |
+| `leads` | Fixed stage enum (ADR-007), value/currency, score, owner, expected close, lost reason, `closed_at`, position |
+| `follow_up_tasks` | `due_at` timestamptz, assignee, optional contact/lead/conversation links, `completed_at` |
+| `customer_activities` | Contact timeline, append-only for the app role |
+| `custom_field_definitions` | Unique `(organization_id, entity, key)`; type, options, required, archived |
+
+All M3 tables use the standard tenant policy.
+
 ## Planned (later milestones)
 Automation (`workflows`, `workflow_versions`, `workflow_runs`, `node_runs`, …),
 CRM (`leads`, `follow_up_tasks`, …), integrations, billing — each with `organization_id` + RLS.

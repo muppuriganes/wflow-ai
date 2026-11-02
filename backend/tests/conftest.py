@@ -7,7 +7,7 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 from dotenv import dotenv_values
@@ -32,6 +32,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine  # noqa: E40
 from app.cli import sync_rbac  # noqa: E402
 from app.core.email import MemoryEmailSender, OutgoingEmail, set_email_sender  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services.gateway import set_gateway  # noqa: E402
+from app.services.storage import set_storage  # noqa: E402
+from tests.fakes import FakeGateway, MemoryStorage  # noqa: E402
 
 PASSWORD = "Sup3r-secret-pass"
 
@@ -60,6 +63,7 @@ async def clean_db(admin_engine: AsyncEngine) -> AsyncIterator[None]:
     async with admin_engine.begin() as conn:
         await conn.execute(text("DELETE FROM audit_logs"))
         await conn.execute(text("DELETE FROM channel_events"))
+        await conn.execute(text("DELETE FROM customer_activities"))
         await conn.execute(text("DELETE FROM organizations"))
         await conn.execute(text("DELETE FROM users"))
 
@@ -120,3 +124,19 @@ def token_from(email: OutgoingEmail) -> str:
     match = re.search(r"(?:token=|/invite/)([A-Za-z0-9_\-]+)", email.text)
     assert match, email.text
     return match.group(1)
+
+
+@pytest.fixture
+def gateway() -> Iterator[FakeGateway]:
+    fake = FakeGateway()
+    set_gateway(fake)
+    yield fake
+    set_gateway(None)
+
+
+@pytest.fixture
+def storage() -> Iterator[MemoryStorage]:
+    fake = MemoryStorage()
+    set_storage(fake)
+    yield fake
+    set_storage(None)

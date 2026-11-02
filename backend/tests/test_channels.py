@@ -1,5 +1,4 @@
 import uuid
-from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
 
@@ -12,63 +11,9 @@ from app.core.errors import AppError
 from app.core.rate_limit import get_redis
 from app.schemas.channel_events import ChannelEvent
 from app.services.channels import qr_key
-from app.services.gateway import GatewayUnavailableError, SendResult, set_gateway
 from app.workers.channel_events import parse_event, process_event
 from tests.conftest import Account, register
-
-
-class FakeGateway:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, Any]] = []
-        self.fail_send: AppError | None = None
-        self.unavailable = False
-        self.fresh_flags: list[bool] = []
-
-    def _check(self) -> None:
-        if self.unavailable:
-            raise GatewayUnavailableError("down")
-
-    async def start(
-        self, connection_id: uuid.UUID, organization_id: uuid.UUID, channel_type: str, fresh: bool
-    ) -> None:
-        self._check()
-        self.calls.append(("start", connection_id))
-        self.fresh_flags.append(fresh)
-
-    async def stop(self, connection_id: uuid.UUID) -> None:
-        self.calls.append(("stop", connection_id))
-
-    async def logout(self, connection_id: uuid.UUID) -> None:
-        self._check()
-        self.calls.append(("logout", connection_id))
-
-    async def remove(self, connection_id: uuid.UUID, organization_id: uuid.UUID) -> None:
-        self._check()
-        self.calls.append(("remove", connection_id))
-
-    async def send_text(
-        self,
-        connection_id: uuid.UUID,
-        organization_id: uuid.UUID,
-        chat_id: str,
-        text: str,
-        client_message_id: str,
-    ) -> SendResult:
-        self.calls.append(("send", (chat_id, text, client_message_id)))
-        if self.fail_send:
-            raise self.fail_send
-        return SendResult(provider_message_id=f"true_{chat_id}_{client_message_id}")
-
-    async def simulate(self, connection_id: uuid.UUID, action: str, payload: dict[str, Any]) -> None:
-        self.calls.append((f"simulate:{action}", payload))
-
-
-@pytest.fixture
-def gateway() -> Iterator[FakeGateway]:
-    fake = FakeGateway()
-    set_gateway(fake)
-    yield fake
-    set_gateway(None)
+from tests.fakes import FakeGateway
 
 
 def event(

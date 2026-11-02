@@ -16,6 +16,8 @@ cd backend && uv run pytest
 | `test_organizations.py` | create/switch, timezone validation, invitation lifecycle, viewer restrictions, email mismatch, revoked invites, role rank & last-owner rules, audit, soft delete, sign-up via invite |
 | `test_tenant_isolation.py` | API returns 404 cross-tenant; raw SQL as the app role cannot see or write other tenants; no-context fails closed; audit log append-only |
 | `test_channels.py` | connection lifecycle + QR, idempotent events, limits, inbound dedupe, idempotent replies, forward-only acks, opt-out/customer-initiated rules, rate limit, spoofed cross-tenant events, secure remove, restore endpoint, simulator guard |
+| `test_inbox.py` | views/counts, assignment rules, reopen keeps owner, notes, takeover, viewer read-only, attachments out (sniffing, storage, gateway) and in (internal upload, linking, cross-org refusal), live notifications carry ids only |
+| `test_crm.py` | phone normalisation, duplicate detection, inbound merge into an existing contact, consent timeline, tags, custom-field validation, pipeline + totals, owner membership, timezone-aware task filters, CRM permissions and isolation |
 | `test_platform.py` | health/readiness, request id + security headers, rate limiter, error envelope |
 
 ## Messaging gateway (`services/messaging-gateway/src/**/*.test.ts`)

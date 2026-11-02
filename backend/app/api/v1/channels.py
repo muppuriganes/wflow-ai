@@ -10,16 +10,11 @@ from app.schemas.channels import (
     ConnectionCreate,
     ConnectionEventOut,
     ConnectionOut,
-    ContactSummary,
-    ConversationOut,
-    MessageOut,
     QRCodeOut,
-    SendMessage,
     SimulateInbound,
 )
 from app.schemas.common import Page
 from app.services import channels as channel_service
-from app.services import messaging as messaging_service
 
 router = APIRouter(prefix="/organizations/{org_id}", tags=["channels"])
 
@@ -106,44 +101,3 @@ async def simulate_scan(connection_id: uuid.UUID, db: DB, ctx: OrgCtx) -> None:
 async def simulate_inbound(connection_id: uuid.UUID, data: SimulateInbound, db: DB, ctx: OrgCtx) -> None:
     """Development only: injects a customer message through the full gateway -> event path."""
     await channel_service.simulate(db, ctx, connection_id, "inbound", data.model_dump())
-
-
-# --- Conversations (minimal read/reply API; the full inbox arrives in M3) ---------------
-
-
-@router.get("/conversations")
-async def list_conversations(
-    db: DB,
-    ctx: OrgCtx,
-    connection_id: uuid.UUID | None = None,
-    page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(ge=1, le=100)] = 25,
-) -> Page[ConversationOut]:
-    rows, total = await messaging_service.list_conversations(db, ctx, connection_id, page, page_size)
-    items = [
-        ConversationOut(
-            id=c.id,
-            connection_id=c.connection_id,
-            contact=ContactSummary.model_validate(contact),
-            is_group=c.is_group,
-            status=c.status,
-            last_message_at=c.last_message_at,
-            last_message_preview=c.last_message_preview,
-            unread_count=c.unread_count,
-        )
-        for c, contact in rows
-    ]
-    return Page(items=items, total=total, page=page, page_size=page_size)
-
-
-@router.get("/conversations/{conversation_id}/messages")
-async def list_messages(conversation_id: uuid.UUID, db: DB, ctx: OrgCtx) -> list[MessageOut]:
-    return [
-        MessageOut.model_validate(m) for m in await messaging_service.list_messages(db, ctx, conversation_id)
-    ]
-
-
-@router.post("/conversations/{conversation_id}/messages", status_code=status.HTTP_201_CREATED)
-async def send_message(conversation_id: uuid.UUID, data: SendMessage, db: DB, ctx: OrgCtx) -> MessageOut:
-    msg = await messaging_service.send_text(db, ctx, conversation_id, data.text, data.client_message_id)
-    return MessageOut.model_validate(msg)

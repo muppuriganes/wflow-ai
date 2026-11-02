@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The repo-root .env is shared by docker compose, the backend and the frontend.
@@ -56,6 +56,17 @@ class Settings(BaseSettings):
     # The simulator channel is for development and demos; disabled in production.
     simulator_enabled: bool = True
     channel_event_stream: str = "wflow:channel-events"
+
+    # --- Object storage (MinIO locally, any S3-compatible service in production) ---
+    s3_endpoint_url: str = "http://127.0.0.1:59000"
+    # Host browsers use for signed download links (defaults to s3_endpoint_url).
+    s3_public_endpoint_url: str = ""
+    s3_bucket: str = "wflow-files"
+    s3_region: str = "us-east-1"
+    s3_access_key: str = Field(default="", validation_alias=AliasChoices("S3_ACCESS_KEY", "MINIO_ROOT_USER"))
+    s3_secret_key: str = Field(
+        default="", validation_alias=AliasChoices("S3_SECRET_KEY", "MINIO_ROOT_PASSWORD")
+    )
 
     @property
     def cors_origin_list(self) -> list[str]:

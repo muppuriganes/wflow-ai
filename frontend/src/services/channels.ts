@@ -27,12 +27,12 @@ export const channelsApi = {
   events: (orgId: string, id: string, page = 1) =>
     api<Page<ConnectionEvent>>(`${conn(orgId, id)}/events?page=${page}&page_size=25`),
   simulateScan: (orgId: string, id: string) => api<void>(`${conn(orgId, id)}/simulate/scan`, { method: "POST" }),
-  simulateInbound: (orgId: string, id: string, body: { phone: string; name: string; text: string }) =>
+  simulateInbound: (orgId: string, id: string, body: { phone: string; name: string; text: string; with_image?: boolean }) =>
     api<void>(`${conn(orgId, id)}/simulate/inbound`, { method: "POST", body }),
 
   conversations: (orgId: string, connectionId?: string) =>
     api<Page<Conversation>>(
-      `${base(orgId)}/conversations?page_size=50${connectionId ? `&connection_id=${connectionId}` : ""}`,
+      `${base(orgId)}/conversations?view=all&page_size=50${connectionId ? `&connection_id=${connectionId}` : ""}`,
     ),
   messages: (orgId: string, conversationId: string) =>
     api<ChatMessage[]>(`${base(orgId)}/conversations/${conversationId}/messages`),

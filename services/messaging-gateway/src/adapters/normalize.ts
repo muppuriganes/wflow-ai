@@ -42,6 +42,7 @@ export type RawMessage = {
   timestamp: number;
   fromMe: boolean;
   isStatus: boolean;
+  hasMedia?: boolean;
 };
 
 export function normalizeMessage(

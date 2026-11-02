@@ -4,12 +4,13 @@ Revision ID: 8e88ef67c55f
 Revises: 712aaaf225ec
 Create Date: 2026-11-02 13:52:14.636890
 """
+
 from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = '8e88ef67c55f'
-down_revision: str | None = '712aaaf225ec'
+revision: str = "8e88ef67c55f"
+down_revision: str | None = "712aaaf225ec"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
