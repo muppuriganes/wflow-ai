@@ -1,0 +1,6 @@
+node_modules
+dist
+.sessions
+.wwebjs_cache
+.wwebjs_auth
+src/**/*.test.ts

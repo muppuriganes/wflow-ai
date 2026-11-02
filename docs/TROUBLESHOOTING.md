@@ -10,3 +10,8 @@
 | Postgres init script did not run | It only runs on an empty volume: `docker compose down -v` (destroys local data) then `up -d` |
 | 429 "Too many requests" on sign-in in dev | Auth endpoints allow `AUTH_RATE_LIMIT` per minute per IP; wait a minute or raise it in `.env` |
 | Emails not arriving | Development email is captured by Mailpit: http://localhost:58025 |
+| WhatsApp: "Execution context was destroyed" at start | Session folder paths too long on Windows (fixed by compact folder names). Keep `SESSION_ROOT` short if you change it |
+| QR keeps spinning / "taking longer than usual" | Gateway not running or unreachable: start `services/messaging-gateway`, then Cancel → Connect |
+| Channel stuck in a state after a crash | Restart the gateway: it resumes in-progress and connected sessions from the backend |
+| Messages not appearing | The event worker must run: `uv run python -m app.workers.channel_events` |
+| Gateway exits immediately | Port 8200 already used by another gateway instance, or `INTERNAL_API_TOKEN` missing |

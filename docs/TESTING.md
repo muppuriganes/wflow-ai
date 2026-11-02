@@ -15,7 +15,19 @@ cd backend && uv run pytest
 | `test_auth.py` | register, validation envelope, login, refresh rotation + reuse detection, logout, verify email, reset, change password, activity |
 | `test_organizations.py` | create/switch, timezone validation, invitation lifecycle, viewer restrictions, email mismatch, revoked invites, role rank & last-owner rules, audit, soft delete, sign-up via invite |
 | `test_tenant_isolation.py` | API returns 404 cross-tenant; raw SQL as the app role cannot see or write other tenants; no-context fails closed; audit log append-only |
+| `test_channels.py` | connection lifecycle + QR, idempotent events, limits, inbound dedupe, idempotent replies, forward-only acks, opt-out/customer-initiated rules, rate limit, spoofed cross-tenant events, secure remove, restore endpoint, simulator guard |
 | `test_platform.py` | health/readiness, request id + security headers, rate limiter, error envelope |
+
+## Messaging gateway (`services/messaging-gateway/src/**/*.test.ts`)
+Vitest with a fake whatsapp-web.js client (no browser, no network): QR lifecycle, browser start failure,
+disconnect reasons, logout wipe, message normalization and dedupe, idempotent and rate-limited sends,
+tenant checks, path-traversal guard, compact session folders, simulator end to end, HTTP auth/validation.
+
+```bash
+cd services/messaging-gateway && npm test
+```
+
+Real WhatsApp is never used in automated tests; it requires a person to scan a QR code with a spare number.
 
 ## Frontend (`frontend/src/**/*.test.ts(x)`)
 Vitest + Testing Library (jsdom). `fetch` is stubbed per test.

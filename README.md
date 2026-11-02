@@ -5,7 +5,7 @@
 Multi-tenant business automation SaaS: WhatsApp connectivity, unified inbox, CRM, visual workflows —
 with AI agents planned as a later track.
 
-> **Status:** Milestones M0 (setup) and M1 (foundation) are complete. See
+> **Status:** M0 (setup), M1 (foundation) and M2 (channels & messaging) are complete. See
 > [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md) for exactly what works today.
 
 ## Stack
@@ -16,7 +16,8 @@ with AI agents planned as a later track.
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2 (async), Alembic, Pydantic v2 |
 | Data | PostgreSQL 17 + pgvector, Row Level Security for tenant isolation |
 | Infra | Redis (rate limiting, later queues), MinIO (files), Mailpit (dev email), Docker Compose |
-| Later | Node.js messaging gateway (whatsapp-web.js) in M2, Temporal in M4 |
+| Messaging | Node.js + TypeScript gateway with whatsapp-web.js; Redis Streams event bus; simulator channel |
+| Later | Temporal (workflow engine, M4) |
 
 ## Quick start (development)
 
@@ -36,10 +37,24 @@ uv run uvicorn app.main:app --port 8100 --reload
 ```
 
 ```bash
+cd backend
+uv run python -m app.workers.channel_events   # applies gateway events to the database
+```
+
+```bash
+cd services/messaging-gateway
+npm install                   # also downloads Chromium for whatsapp-web.js
+npm run dev                   # internal API on 127.0.0.1:8200
+```
+
+```bash
 cd frontend
 npm install
 npm run dev                   # http://localhost:5180
 ```
+
+Without a phone, add a **Simulator** channel under Channels: it goes through the same QR → connected →
+message → delivery-receipt path as WhatsApp.
 
 | Service | URL |
 |---|---|
@@ -61,6 +76,7 @@ docker compose --profile app up -d --build
 
 ```bash
 cd backend && uv run pytest        # needs `docker compose up -d` (uses the wflow_test database)
+cd services/messaging-gateway && npm test
 cd frontend && npm test
 ```
 

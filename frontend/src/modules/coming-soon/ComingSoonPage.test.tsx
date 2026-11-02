@@ -13,7 +13,7 @@ describe("ComingSoonPage", () => {
   });
 
   it("every unbuilt nav item declares its milestone", () => {
-    for (const item of workspaceNav.filter((i) => i.to !== "/")) {
+    for (const item of workspaceNav.filter((i) => !["/", "/channels"].includes(i.to))) {
       expect(item.milestone, item.label).toBeDefined();
     }
   });

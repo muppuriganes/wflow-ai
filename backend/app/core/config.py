@@ -46,6 +46,17 @@ class Settings(BaseSettings):
 
     max_organizations_per_user: int = 10
 
+    # --- Channels / messaging gateway ---
+    gateway_url: str = "http://127.0.0.1:8200"
+    # Shared secret for backend <-> gateway calls (both directions). Never exposed to browsers.
+    internal_api_token: str = Field(default="", min_length=0)
+    max_connections_per_org: int = 3
+    # Conservative outbound cap per connection; protects customers' numbers and recipients.
+    channel_send_limit_per_minute: int = 20
+    # The simulator channel is for development and demos; disabled in production.
+    simulator_enabled: bool = True
+    channel_event_stream: str = "wflow:channel-events"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -57,6 +68,10 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET must be set to a random value in production")
             if not self.cookie_secure:
                 raise ValueError("COOKIE_SECURE must be true in production")
+            if len(self.internal_api_token) < 32:
+                raise ValueError("INTERNAL_API_TOKEN must be a random value of 32+ characters in production")
+            if self.simulator_enabled:
+                raise ValueError("SIMULATOR_ENABLED must be false in production")
         return self
 
 

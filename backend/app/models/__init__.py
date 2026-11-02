@@ -1,3 +1,4 @@
+from app.models.channels import ChannelConnection, ChannelEvent
 from app.models.governance import AuditLog
 from app.models.identity import (
     Invitation,
@@ -10,9 +11,15 @@ from app.models.identity import (
     User,
     UserActionToken,
 )
+from app.models.messaging import Contact, Conversation, Message
 
 __all__ = [
     "AuditLog",
+    "ChannelConnection",
+    "ChannelEvent",
+    "Contact",
+    "Conversation",
+    "Message",
     "Invitation",
     "Organization",
     "OrganizationMember",

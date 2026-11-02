@@ -52,6 +52,9 @@ never an organization role.
 See [WHATSAPP_CONNECTOR.md](WHATSAPP_CONNECTOR.md). The inbox, CRM and workflow engine depend only on a
 normalized channel event format, so the connector can be swapped (e.g. for the official Cloud API) later.
 
+Implemented in M2 — see WHATSAPP_CONNECTOR.md. Events travel over a Redis Stream consumed by a backend
+worker with idempotent handlers; commands go to the gateway over authenticated internal HTTP.
+
 ### ADR-005 — AI is a later track
 Per product decision, AI (model router, RAG, agents) is deferred until the core platform is complete.
 pgvector is installed now; AI menu items show an honest "not available yet" state.

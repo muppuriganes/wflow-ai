@@ -59,6 +59,7 @@ async def clean_db(admin_engine: AsyncEngine) -> AsyncIterator[None]:
     yield
     async with admin_engine.begin() as conn:
         await conn.execute(text("DELETE FROM audit_logs"))
+        await conn.execute(text("DELETE FROM channel_events"))
         await conn.execute(text("DELETE FROM organizations"))
         await conn.execute(text("DELETE FROM users"))
 

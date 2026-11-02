@@ -62,3 +62,30 @@ Base URL `/api/v1`. Interactive OpenAPI docs: `/api/docs` (schema at `/api/opena
 | POST | `/invitations/preview` | Public; `{token}` → org name, email, role, status |
 |---|---|---|
 | POST | `/invitations/accept` | Auth; email must match; marks email verified |
+
+## Endpoints (M2)
+
+### Channels — `/organizations/{id}/…`
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/channel-capabilities` | `connections.read` — enabled channel types, limits |
+| GET / POST | `/connections` | read / `connections.manage`; `{display_name, channel_type: whatsapp_web or simulator}` |
+| GET | `/connections/{cid}` | `connections.read` |
+| POST | `/connections/{cid}/initialize`, `/reconnect` | `connections.manage` |
+| GET | `/connections/{cid}/qr` | `connections.manage` — `{status, qr_data_url, expires_in}` |
+| POST | `/connections/{cid}/logout` | `connections.manage` — unlinks device, deletes session |
+| DELETE | `/connections/{cid}` | `connections.manage` — gateway wipe first; 503 if it cannot confirm |
+| GET | `/connections/{cid}/events` | `connections.read` — connection log (paginated) |
+| POST | `/connections/{cid}/simulate/scan`, `/simulate/inbound` | simulator connections only, dev |
+| GET | `/conversations?connection_id=` | `inbox.read` |
+| GET | `/conversations/{conv}/messages` | `inbox.read` (clears unread) |
+| POST | `/conversations/{conv}/messages` | `inbox.reply`; `{text, client_message_id}`; 409 `contact_opted_out` / `not_customer_initiated` / `connection_not_ready`; 429 over the send limit |
+
+### Internal (service-to-service, `Authorization: Bearer INTERNAL_API_TOKEN`, not in OpenAPI)
+| Method | Path | |
+|---|---|---|
+| GET | `/internal/channels/restore` | Connections the gateway should resume after a restart |
+
+### Messaging gateway internal API (port 8200, never public)
+`GET /health` · `GET /v1/connections` · `POST /v1/connections/{id}/start|stop|logout|remove|messages` ·
+`POST /v1/simulator/{id}/scan|inbound` (only when `SIMULATOR_ENABLED`).

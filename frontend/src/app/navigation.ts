@@ -35,15 +35,7 @@ export const workspaceNav: NavItem[] = [
     icon: Inbox,
     milestone: { id: "M3", summary: "Unified, real-time inbox with assignment, notes, tags and human takeover." },
   },
-  {
-    to: "/channels",
-    label: "Channels",
-    icon: MessageCircle,
-    milestone: {
-      id: "M2",
-      summary: "Connect WhatsApp by QR code (whatsapp-web.js), monitor connection health and logs.",
-    },
-  },
+  { to: "/channels", label: "Channels", icon: MessageCircle },
   {
     to: "/workflows",
     label: "Workflows",

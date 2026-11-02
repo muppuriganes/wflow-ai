@@ -8,6 +8,8 @@ import { LoginPage } from "@/modules/auth/LoginPage";
 import { RegisterPage } from "@/modules/auth/RegisterPage";
 import { ResetPasswordPage } from "@/modules/auth/ResetPasswordPage";
 import { VerifyEmailPage } from "@/modules/auth/VerifyEmailPage";
+import { ChannelsPage } from "@/modules/channels/ChannelsPage";
+import { ConnectionDetailPage } from "@/modules/channels/ConnectionDetailPage";
 import { ComingSoonPage } from "@/modules/coming-soon/ComingSoonPage";
 import { OverviewPage } from "@/modules/dashboard/OverviewPage";
 import { NotFoundPage } from "@/modules/NotFoundPage";
@@ -73,6 +75,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <OverviewPage /> },
       ...comingSoonRoutes,
+      { path: "channels", element: <ChannelsPage /> },
+      { path: "channels/:connectionId", element: <ConnectionDetailPage /> },
       { path: "organization", element: <OrganizationPage /> },
       { path: "team", element: <TeamPage /> },
       { path: "security", element: <SecurityPage /> },

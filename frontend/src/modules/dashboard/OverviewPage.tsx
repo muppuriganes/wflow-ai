@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/states";
+import { channelsApi } from "@/services/channels";
 import { orgApi } from "@/services/organizations";
 import { useAuth } from "@/stores/auth";
 import { orgKeys, useCurrentOrg } from "@/stores/organization";
@@ -33,6 +34,9 @@ export function OverviewPage() {
   const canSeeTeam = org.can("members.read");
   const members = useQuery({ queryKey: orgKeys.scoped(org.id, "members"), queryFn: () => orgApi.members(org.id), enabled: canSeeTeam });
   const invitations = useQuery({ queryKey: orgKeys.scoped(org.id, "invitations"), queryFn: () => orgApi.invitations(org.id), enabled: canSeeTeam });
+  const canSeeChannels = org.can("connections.read");
+  const connections = useQuery({ queryKey: orgKeys.scoped(org.id, "connections"), queryFn: () => channelsApi.list(org.id), enabled: canSeeChannels });
+  const liveChannels = (connections.data ?? []).filter((c) => c.status === "CONNECTED" && c.channel_type === "whatsapp_web").length;
 
   const teamSize = members.data?.length ?? 0;
   const pending = invitations.data?.length ?? 0;
@@ -53,7 +57,16 @@ export function OverviewPage() {
         </Link>
       ) : undefined,
     },
-    { label: "Connect WhatsApp", detail: "Link a WhatsApp number by scanning a QR code.", state: "upcoming" },
+    {
+      label: "Connect WhatsApp",
+      detail: liveChannels ? `${liveChannels} WhatsApp number${liveChannels === 1 ? "" : "s"} connected` : "Link a WhatsApp number by scanning a QR code.",
+      state: liveChannels ? "done" : "todo",
+      action: org.can("connections.manage") ? (
+        <Link to="/channels" className="text-xs font-medium text-primary hover:underline">
+          Connect
+        </Link>
+      ) : undefined,
+    },
     { label: "Build your first workflow", detail: "Automate replies, routing and follow-ups visually.", state: "upcoming" },
   ];
   const done = steps.filter((s) => s.state === "done").length;

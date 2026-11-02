@@ -57,7 +57,20 @@ Helper functions: `app_current_org_id()`, `app_current_user_id()` read transacti
 `invitation_org_by_token_hash(text)` is a `SECURITY DEFINER` function that resolves exactly one invitation
 token digest to its organization, so invite links can be opened before any tenant context exists.
 
+## Channels & messaging (M2)
+
+| Table | Notes |
+|---|---|
+| `channel_connections` | `channel_type`, `status` (9 states), phone/account name, `session_reference` (opaque), connect/disconnect times, soft delete |
+| `channel_events` | Connection log + idempotency ledger (`event_id` unique). Append-only for the app role |
+| `contacts` | Unique `(organization_id, channel_type, external_id)`; `consent_status`, `opted_out_at`, `last_inbound_at` |
+| `conversations` | Unique `(connection_id, external_chat_id)`; status, last message preview/time, unread count |
+| `messages` | Direction, type, content, status; partial unique `(connection_id, provider_message_id)` for dedupe; unique `(organization_id, client_message_id)` for duplicate-send protection |
+
+All five tables use the uniform tenant policy `organization_id = app_current_org_id()`.
+`channel_connections_to_restore()` (`SECURITY DEFINER`) returns only `(id, organization_id, channel_type)`
+of in-progress/active connections so the gateway can resume them after a restart.
+
 ## Planned (later milestones)
-Channels (`channel_connections`, `channel_sessions`, `channel_events`), messaging (`contacts`,
-`conversations`, `messages`, …), automation (`workflows`, `workflow_versions`, `workflow_runs`, `node_runs`, …),
+Automation (`workflows`, `workflow_versions`, `workflow_runs`, `node_runs`, …),
 CRM (`leads`, `follow_up_tasks`, …), integrations, billing — each with `organization_id` + RLS.
