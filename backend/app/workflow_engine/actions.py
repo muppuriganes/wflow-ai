@@ -1,17 +1,21 @@
 """Side effects performed by workflow steps. Each runs inside one activity transaction with the
 run's organization as RLS context, and is idempotent where a retry could otherwise repeat it."""
 
+import json
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+import httpx
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
+from app.core.logging import get_logger
+from app.core.ssrf import validate_url_ssrf_safe
 from app.models import (
     Contact,
     ContactTag,
@@ -26,6 +30,8 @@ from app.models import (
 )
 from app.services.messaging import deliver
 from app.workflow_engine.expressions import render
+
+logger = get_logger(__name__)
 
 
 class StepSkipped(Exception):
@@ -229,6 +235,64 @@ async def handover(
     return {"automation_paused": True, "assigned_user_id": config.get("user_id")}
 
 
+async def http_request(
+    db: AsyncSession, org_id: uuid.UUID, ctx: dict[str, Any], config: dict[str, Any]
+) -> dict[str, Any]:
+    url_raw = render(config.get("url", ""), ctx).strip()
+    if not url_raw:
+        raise StepSkipped("URL is empty")
+
+    validate_url_ssrf_safe(url_raw)
+
+    method = (config.get("method") or "POST").upper()
+    headers: dict[str, str] = {}
+    headers_raw = config.get("headers")
+    if headers_raw:
+        rendered_headers = render(headers_raw, ctx).strip()
+        if rendered_headers:
+            try:
+                parsed = json.loads(rendered_headers)
+                if isinstance(parsed, dict):
+                    headers = {str(k): str(v) for k, v in parsed.items()}
+            except Exception as exc:
+                logger.warning("Failed to parse http_request custom headers: %s", exc)
+
+    body_raw = config.get("body")
+    body: str | None = None
+    if body_raw:
+        body = render(body_raw, ctx)
+
+    cred_id_raw = config.get("credential_id")
+    if cred_id_raw:
+        try:
+            cred_id = uuid.UUID(str(cred_id_raw).strip())
+            from app.services.credentials import get_decrypted_secret
+
+            secret = await get_decrypted_secret(db, org_id, cred_id)
+            if secret:
+                headers.setdefault("Authorization", f"Bearer {secret}")
+        except Exception as exc:
+            logger.warning("Failed to inject credential into http_request: %s", exc)
+
+    timeout = float(config.get("timeout_seconds") or 10)
+    timeout = min(max(timeout, 1.0), 30.0)
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            resp = await client.request(method=method, url=url_raw, headers=headers, content=body)
+            # Response truncation: max 256 KB
+            raw_text = resp.text[:262144]
+            return {
+                "status_code": resp.status_code,
+                "success": 200 <= resp.status_code < 300,
+                "body": raw_text[:2000],
+                "url": url_raw,
+                "method": method,
+            }
+    except Exception as exc:
+        raise AppError(f"HTTP request failed: {exc}", status_code=502) from exc
+
+
 ACTIONS = {
     "action.add_tag": add_tag,
     "action.remove_tag": remove_tag,
@@ -238,6 +302,7 @@ ACTIONS = {
     "action.add_note": add_note,
     "action.create_lead": create_lead,
     "action.create_task": create_task,
+    "action.http_request": http_request,
     "human.handover": handover,
 }
 
@@ -253,6 +318,10 @@ def describe_test(node_type: str, ctx: dict[str, Any], config: dict[str, Any]) -
             return f"Would create task “{render(config['title'], ctx, 200)}”"
         case "action.add_note":
             return f"Would add note “{render(config['body'], ctx, 200)}”"
+        case "action.http_request":
+            return (
+                f"Would send HTTP {config.get('method', 'POST')} to {render(config.get('url', ''), ctx, 200)}"
+            )
         case "human.handover":
             return "Would pause automations and hand the conversation to a person"
     return f"Would run {node_type.split('.')[-1].replace('_', ' ')}"

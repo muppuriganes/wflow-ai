@@ -9,10 +9,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.errors import AppError, ConflictError, NotFoundError
+from app.core.errors import AppError, ConflictError, NotFoundError, OrganizationSuspendedError
 from app.core.rate_limit import enforce_rate_limit
 from app.models import ChannelConnection, Contact, Conversation, Message, MessageAttachment
+from app.models.identity import Organization
 from app.schemas.inbox import AttachmentOut, MessageOut
+from app.services import plans
 from app.services.files import validate_upload
 from app.services.gateway import get_gateway
 from app.services.inbox import get_conversation_row, users_by_id
@@ -131,6 +133,15 @@ async def deliver(
         )
     if conn.status != "CONNECTED":
         raise ConflictError("This channel is not connected", code="connection_not_ready")
+
+    org = await db.get(Organization, org_id)
+    if org and org.status == "suspended":
+        raise OrganizationSuspendedError(
+            "This organization is suspended. Outbound messages are blocked.",
+            details={"reason": org.suspended_reason},
+        )
+
+    await plans.increment_monthly_usage(db, org_id, "outbound_messages")
 
     detected = None
     if file is not None:

@@ -551,3 +551,159 @@ export type AnalyticsData = {
     top_failing_steps: TopFailingStep[];
   };
 };
+
+
+// --- Milestone 6: Commercial Platform Types ---
+
+export type Plan = {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  price_cents_monthly: number;
+  price_cents_yearly: number;
+  currency: string;
+  limits: Record<string, number>;
+  features: Record<string, any>;
+  is_active: boolean;
+};
+
+export type Subscription = {
+  id: string;
+  organization_id: string;
+  plan_id: string;
+  plan_key: string;
+  plan_name: string;
+  status: string;
+  billing_interval: 'monthly' | 'yearly';
+  current_period_start: string;
+  current_period_end: string;
+  trial_end: string | null;
+  cancel_at_period_end: boolean;
+  provider: string;
+};
+
+export type UsageMeterItem = {
+  metric: string;
+  label: string;
+  used: number;
+  limit: number;
+  percentage: number;
+};
+
+export type PlanUsageOverview = {
+  plan: Plan;
+  subscription: Subscription;
+  trial_days_remaining: number | null;
+  meters: UsageMeterItem[];
+};
+
+export type Invoice = {
+  id: string;
+  organization_id: string;
+  invoice_number: string;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  period_start: string;
+  period_end: string;
+  pdf_url: string | null;
+  created_at: string;
+};
+
+export type WebhookEndpoint = {
+  id: string;
+  organization_id: string;
+  name: string;
+  target_url: string;
+  events: string[];
+  is_active: boolean;
+  consecutive_failures: number;
+  disabled_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WebhookCreateOut = WebhookEndpoint & {
+  secret_key: string;
+};
+
+export type WebhookDelivery = {
+  id: string;
+  organization_id: string;
+  webhook_id: string;
+  event_type: string;
+  event_id: string;
+  payload: Record<string, any>;
+  response_status: number | null;
+  response_body: string | null;
+  duration_ms: number | null;
+  attempt: number;
+  success: boolean;
+  error: string | null;
+  created_at: string;
+};
+
+export type IntegrationCredential = {
+  id: string;
+  organization_id: string;
+  name: string;
+  type: string;
+  masked_secret: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminOrgListItem = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  created_at: string;
+  plan_key: string;
+  plan_name: string;
+  subscription_status: string;
+  trial_ends_at: string | null;
+  members_count: number;
+  workflows_count: number;
+  channels_count: number;
+};
+
+export type AdminOrgListOut = {
+  items: AdminOrgListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type AdminOrgDetailOut = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  suspended_at: string | null;
+  suspended_reason: string | null;
+  created_at: string;
+  subscription: Subscription | null;
+  plan: Plan | null;
+  current_usage: Record<string, number>;
+  members_count: number;
+  workflows_count: number;
+  channels_count: number;
+  recent_audit_events: Array<{
+    id: string;
+    action: string;
+    created_at: string;
+    actor_email?: string;
+    metadata?: Record<string, any>;
+  }>;
+};
+
+export type AdminHealth = {
+  status: 'healthy' | 'degraded';
+  services: Record<string, {
+    status: 'ok' | 'down' | 'error';
+    latency_ms?: number;
+    error?: string;
+  }>;
+};

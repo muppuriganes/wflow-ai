@@ -162,6 +162,14 @@ async def _evaluate(db: AsyncSession, inp: NodeInput) -> NodeResult:
     if inp.test and node_def.side_effects:
         return NodeResult(None if not node_def.outputs else "out",
                           {"test": True, "description": actions.describe_test(t, ctx, cfg)})  # fmt: skip
+    if t == "action.http_request":
+        output = await actions.http_request(db, org_id, ctx, cfg)
+        await db.commit()
+        vars_to_add = {
+            "http_status": str(output.get("status_code", "")),
+            "http_body": str(output.get("body", "")),
+        }
+        return NodeResult("out", output, vars_to_add)
     if t == "action.send_message":
         output = await actions.send_message(db, org_id, inp.run_id, inp.node_id, ctx, cfg)
     else:

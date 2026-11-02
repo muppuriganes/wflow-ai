@@ -220,25 +220,78 @@ export function AnalyticsPage() {
             <Card className="lg:col-span-2">
               <CardHeader
                 title="Message Activity Timeline"
-                description={`Daily inbound vs outbound message volume`}
+                description="Daily inbound vs outbound message volume"
+                actions={
+                  <div className="flex items-center gap-4 text-xs font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block size-2.5 rounded-sm bg-emerald-500" />
+                      <span className="text-muted">Inbound ({data.overview.total_messages_in})</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block size-2.5 rounded-sm bg-blue-500" />
+                      <span className="text-muted">Outbound ({data.overview.total_messages_out})</span>
+                    </span>
+                  </div>
+                }
               />
               <CardBody>
                 {!data.messages.length ? (
                   <p className="text-xs text-muted py-8 text-center">No messages sent or received in this period.</p>
                 ) : (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-12 text-[11px] font-medium text-muted pb-1 border-b">
-                      <span className="col-span-4">Date</span>
-                      <span className="col-span-4 text-right">Inbound (received)</span>
-                      <span className="col-span-4 text-right">Outbound (sent)</span>
+                  <div className="space-y-4">
+                    {/* Visual Bar Chart */}
+                    <div className="relative pt-6 pb-2">
+                      {(() => {
+                        const maxVal = Math.max(...data.messages.map((d) => Math.max(d.inbound, d.outbound)), 5);
+                        return (
+                          <div className="flex items-end gap-2 h-44 border-b border-border/60 pb-1 overflow-x-auto">
+                            {data.messages.map((day) => {
+                              const inPct = Math.min(100, Math.round((day.inbound / maxVal) * 100));
+                              const outPct = Math.min(100, Math.round((day.outbound / maxVal) * 100));
+                              const shortDate = day.date.slice(5);
+                              return (
+                                <div
+                                  key={day.date}
+                                  className="group relative flex-1 min-w-[20px] max-w-[40px] flex flex-col items-center justify-end h-full"
+                                >
+                                  {/* Tooltip */}
+                                  <div className="absolute -top-10 z-10 hidden group-hover:flex flex-col items-center bg-popover text-popover-foreground text-[10px] px-2 py-1 rounded shadow-md whitespace-nowrap pointer-events-none border border-border">
+                                    <span className="font-semibold">{day.date}</span>
+                                    <span>In: {day.inbound} · Out: {day.outbound}</span>
+                                  </div>
+
+                                  <div className="flex items-end gap-1 w-full justify-center h-full">
+                                    {/* Inbound bar */}
+                                    <div
+                                      style={{ height: `${Math.max(inPct, 4)}%` }}
+                                      className="w-1/2 bg-emerald-500/85 hover:bg-emerald-500 rounded-t transition-all"
+                                      title={`Inbound: ${day.inbound}`}
+                                    />
+                                    {/* Outbound bar */}
+                                    <div
+                                      style={{ height: `${Math.max(outPct, 4)}%` }}
+                                      className="w-1/2 bg-blue-500/85 hover:bg-blue-500 rounded-t transition-all"
+                                      title={`Outbound: ${day.outbound}`}
+                                    />
+                                  </div>
+
+                                  {/* X-axis label */}
+                                  <span className="mt-1 text-[9px] text-muted truncate w-full text-center">
+                                    {shortDate}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>
-                    {data.messages.map((day) => (
-                      <div key={day.date} className="grid grid-cols-12 text-xs py-1 border-b border-border/40">
-                        <span className="col-span-4 font-mono text-muted">{day.date}</span>
-                        <span className="col-span-4 text-right font-medium text-foreground">{day.inbound}</span>
-                        <span className="col-span-4 text-right font-medium text-foreground">{day.outbound}</span>
-                      </div>
-                    ))}
+
+                    {/* Summary row */}
+                    <div className="flex items-center justify-between text-[11px] text-muted pt-1">
+                      <span>Total Active Days: {data.messages.filter((d) => d.inbound > 0 || d.outbound > 0).length}</span>
+                      <span>Daily Average: {Math.round((data.overview.total_messages_in + data.overview.total_messages_out) / Math.max(data.messages.length, 1))} msgs/day</span>
+                    </div>
                   </div>
                 )}
               </CardBody>

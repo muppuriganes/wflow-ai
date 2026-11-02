@@ -178,3 +178,44 @@ Base URL `/api/v1`. Interactive OpenAPI docs: `/api/docs` (schema at `/api/opena
 | GET | `/analytics/overview` | `analytics.read` or `org.read`; last-7-days counters for the home dashboard |
 | GET | `/analytics?range=7d\|30d\|90d\|custom&from_date=&to_date=` | `analytics.read`; everything (headline numbers included) covers the chosen range; custom ranges are read in the org timezone, at most 366 days (422 `invalid_range`) |
 | GET | `/analytics/export?type=conversations\|messages\|leads\|workflows&range=7d\|30d\|90d` | `analytics.read`; CSV, at most 50,000 rows; cells starting with `= + - @` are prefixed with `'` so spreadsheets never run them as formulas |
+
+
+## Endpoints (M6)
+
+### Plans & Metering — under `/organizations/{id}`
+| Method | Path | Permission / notes |
+|---|---|---|
+| GET | `/plans` | `org.read`; returns available plans with limits and monthly/yearly pricing |
+| GET | `/plans/usage` | `org.read`; current plan, subscription status, trial countdown, resource meters (members, channels, workflows, schedules, runs, messages, storage) |
+| POST | `/plans/change` | `billing.manage`; `{plan_key, billing_interval: monthly|yearly}`; updates tier |
+
+### Commercial Billing — under `/organizations/{id}`
+| Method | Path | Permission / notes |
+|---|---|---|
+| POST | `/billing/checkout` | `billing.manage`; `{plan_key, return_url}`; returns `{checkout_url}` |
+| POST | `/billing/portal` | `billing.manage`; `{return_url}`; returns `{portal_url}` |
+| GET | `/billing/invoices` | `billing.manage`; list past invoices with amounts, statuses, and receipt URLs |
+| POST | `/billing/cancel` | `billing.manage`; sets `cancel_at_period_end = true` |
+| POST | `/billing/resume` | `billing.manage`; clears cancellation at period end |
+| POST | `/api/v1/billing/webhook/stripe` | Public endpoint; verifies `Stripe-Signature` (HMAC-SHA256); replay protection via `processed_provider_events`; handles `checkout.session.completed`, `invoice.paid`, `customer.subscription.deleted/updated` |
+
+### Integrations & Webhooks — under `/organizations/{id}`
+| Method | Path | Permission / notes |
+|---|---|---|
+| GET / POST | `/webhooks` | `integrations.read` / `integrations.manage`. Create: `{name, target_url, events: [...]}`; returns `secret_key` once |
+| PATCH / DELETE | `/webhooks/{id}` | `integrations.manage`; update url/events/active flag or delete |
+| POST | `/webhooks/{id}/ping` | `integrations.manage`; sends test ping and returns delivery latency |
+| GET | `/webhooks/{id}/deliveries` | `integrations.read`; list past 50 deliveries with HTTP status and response times |
+| POST | `/webhooks/{id}/deliveries/{did}/redeliver` | `integrations.manage`; retries specific delivery attempt |
+| GET / POST | `/credentials` | `integrations.read` / `integrations.manage`. Create: `{name, type: api_key|bearer|basic, secret}`; stored with AES-256-GCM |
+| DELETE | `/credentials/{id}` | `integrations.manage`; removes credential from vault |
+
+### Super Admin Console — `/api/v1/admin` (Guarded: `is_superadmin = true`)
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/health` | Live system diagnostic probes (Postgres, Redis, Temporal, Storage, Gateway) |
+| GET | `/admin/organizations?search=&plan_key=&status=&page=` | Cross-tenant organizations list with member, channel, and workflow counts |
+| GET | `/admin/organizations/{id}` | Tenant inspection with current usage metrics and cross-tenant audit events |
+| POST | `/admin/organizations/{id}/plan` | `{plan_key, trial_days?}`; override plan and extend trial period |
+| POST | `/admin/organizations/{id}/suspend` | `{reason}`; freezes tenant outbound messages, schedules, and triggers |
+| POST | `/admin/organizations/{id}/restore` | Restores tenant to active operational status |

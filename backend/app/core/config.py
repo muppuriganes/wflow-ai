@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     # an hour-long delay takes about a second; production refuses anything but 1.
     workflow_time_scale: float = 1.0
 
+    # --- Commercial platform & Integrations (M6) ---
+    credentials_encryption_key: str = "wflow-credentials-encryption-key-32b!"
+    stripe_secret_key: str = "sk_test_mock_wflow"
+    stripe_webhook_secret: str = "whsec_mock_wflow"
+    billing_test_mode: bool = True
+
     # --- Object storage (MinIO locally, any S3-compatible service in production) ---
     s3_endpoint_url: str = "http://127.0.0.1:59000"
     # Host browsers use for signed download links (defaults to s3_endpoint_url).

@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError, NotFoundError
@@ -28,6 +28,7 @@ from app.models import (
     WorkflowVersion,
 )
 from app.schemas.schedules import ScheduleCreate, ScheduleOut, ScheduleUpdate
+from app.services import plans
 from app.services.audit import record_audit
 from app.services.realtime import publish
 from app.workflow_engine import client as engine
@@ -159,13 +160,7 @@ async def create_schedule(
 ) -> ScheduleOut:
     workflow = await _schedulable_workflow(db, org_id, data.workflow_id)
     await _tag(db, org_id, data.target_tag_id)
-    count = await db.scalar(
-        select(func.count()).select_from(Schedule).where(Schedule.organization_id == org_id)
-    )
-    if (count or 0) >= MAX_SCHEDULES:
-        raise InvalidScheduleError(
-            f"An organization can have at most {MAX_SCHEDULES} schedules", code="limit_reached"
-        )
+    await plans.check_resource_limit(db, org_id, "max_active_schedules")
     org = await db.get(Organization, org_id)
     tz = _validate_timezone(data.timezone or (org.timezone if org else "UTC"))
     config = validate_config(data.schedule_type, data.config, tz)
@@ -227,6 +222,8 @@ async def _set_status(db: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID, s
                       status: str) -> ScheduleOut:  # fmt: skip
     sched = await _get(db, org_id, schedule_id)
     if sched.status != status:
+        if status == "active":
+            await plans.check_resource_limit(db, org_id, "max_active_schedules")
         await engine.set_temporal_schedule_paused(str(sched.id), paused=status == "paused")
         sched.status = status
         sched.updated_at = datetime.now(UTC)

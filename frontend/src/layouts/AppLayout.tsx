@@ -1,7 +1,7 @@
 import { Building2, Check, ChevronsUpDown, LogOut, Menu, Plus, Settings, X } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from "react-router";
-import { adminNav, type NavItem, workspaceNav } from "@/app/navigation";
+import { adminNav, type NavItem, platformAdminNav, workspaceNav } from "@/app/navigation";
 import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,6 +149,7 @@ function UserMenu() {
 }
 
 function Shell() {
+  const { user } = useAuth();
   const { current, isLoading, error, refetch, organizations } = useOrganization();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -196,6 +197,9 @@ function Shell() {
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4">
           <NavSection title="Workspace" items={workspaceNav} onNavigate={closeMobile} />
           <NavSection title="Administration" items={adminNav} onNavigate={closeMobile} />
+          {user?.is_superadmin && (
+            <NavSection title="Platform" items={platformAdminNav} onNavigate={closeMobile} />
+          )}
         </nav>
       </aside>
 

@@ -7,12 +7,14 @@ import {
   Building2,
   CalendarClock,
   Contact,
+  CreditCard,
   Inbox,
   LayoutDashboard,
   LayoutTemplate,
   type LucideIcon,
   MessageCircle,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Users,
@@ -54,12 +56,7 @@ export const workspaceNav: NavItem[] = [
   },
   { to: "/contacts", label: "Contacts & CRM", icon: Contact, also: ["/leads", "/tasks"] },
   { to: "/schedules", label: "Schedules", icon: CalendarClock },
-  {
-    to: "/integrations",
-    label: "Integrations",
-    icon: Blocks,
-    milestone: { id: "M6", summary: "Connector registry, webhooks and REST integrations with encrypted credentials." },
-  },
+  { to: "/integrations", label: "Integrations", icon: Blocks },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/executions", label: "Execution Logs", icon: Activity },
   { to: "/templates", label: "Templates", icon: LayoutTemplate },
@@ -69,7 +66,12 @@ export const adminNav: NavItem[] = [
   { to: "/organization", label: "Organization", icon: Building2 },
   { to: "/team", label: "Team & Roles", icon: Users },
   { to: "/security", label: "Security", icon: ShieldCheck },
+  { to: "/billing", label: "Plans & Billing", icon: CreditCard },
   { to: "/settings", label: "Settings", icon: Settings },
+];
+
+export const platformAdminNav: NavItem[] = [
+  { to: "/admin", label: "Platform Admin", icon: ShieldAlert },
 ];
 
 export const MILESTONE_LABELS: Record<string, string> = {

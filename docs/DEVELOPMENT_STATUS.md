@@ -1,6 +1,6 @@
 # Development status
 
-_Last updated: 2026-11-02 — end of M5._
+_Last updated: 2026-11-02 — end of M6._
 
 ## Working now (implemented, tested, verified in the browser)
 
@@ -49,18 +49,25 @@ _Last updated: 2026-11-02 — end of M5._
 ### M5 — Schedules, templates & analytics
 | Area | Details |
 |---|---|
-| Schedules | “On a schedule” workflow trigger (timing lives on the schedule, so one workflow can have several); one-off and recurring (daily / weekly days / monthly / cron), evaluated in the organization's IANA timezone; Temporal Schedules with skip overlap policy and 15-min catchup window; manual "Run now"; optional contact tag target (one run per tagged contact with their latest conversation, skipping opted-out contacts and conversations a person has taken over; scheduled workflows can send WhatsApp messages); every fire is de-duplicated, so engine retries never start runs twice; config, cron and timezone validated; Schedules page (`/schedules`) with list, create, pause, resume, trigger, delete |
+| Schedules | “On a schedule” workflow trigger (timing lives on the schedule, so one workflow can have several); one-off and recurring (daily / weekly days / monthly / cron), evaluated in the organization's IANA timezone; Temporal Schedules with skip overlap policy and 15-min catchup window; manual "Run now"; optional contact tag target (one run per tagged contact with their latest conversation, skipping opted-out contacts and conversations a person has taken over; scheduled workflows can send WhatsApp messages); every fire is de-duplicated, so engine retries never start runs twice; config, cron and timezone validated; Schedules page (`/schedules`) with list, create, edit, pause, resume, trigger, delete |
 | Templates | Seeded starter blueprints (Keyword auto-reply, Out-of-hours reply, New-lead capture, Approval for discounts, Follow-up after no reply); Templates page (`/templates`) with category tabs, search, read-only React Flow canvas preview modal, and "Use template" instantiation into draft workflow |
-| Analytics | Real data only (no mock data); `/analytics` and `/` Overview dashboard; date ranges (7d, 30d, 90d); conversation stats, response time, inbound/outbound volume timeline, CRM pipeline value & conversion, task health, workflow execution reliability & top failing steps; CSV export with `analytics.read` permission (formula-safe cells, 50k-row cap); headline numbers follow the selected range |
+| Analytics | Real data only (no mock data); `/analytics` and `/` Overview dashboard; date ranges (7d, 30d, 90d); conversation stats, response time, inbound/outbound volume bar chart timeline, per-agent first response time calculation, CRM pipeline value & conversion, task health, workflow execution reliability & top failing steps; CSV export with `analytics.read` permission (formula-safe cells, 50k-row cap); headline numbers follow the selected range |
+
+### M6 — Commercial platform
+| Area | Details |
+|---|---|
+| Plans & Metering | Tiered plans (Free, Starter, Growth, Business) with monthly/yearly pricing; concurrency-safe monthly usage counters (workflow runs, outbound messages, storage); resource limit validation (seats, channels, workflows, schedules); organization suspension columns & enforcement blocking triggers/outbound/schedules; Plans & Billing page (`/billing`) with usage meters, interval toggle, invoice table |
+| Integrations Framework | Outgoing webhooks with HMAC-SHA256 signatures (`X-WFlow-Signature`), delivery logging with response codes, retry mechanism, and automatic pause after 10 consecutive delivery failures; Encrypted credential store using AES-256-GCM with secret masking (`••••1234`); SSRF protection guard blocking loopback, private ranges (RFC 1918), link-local cloud metadata (169.254.169.254), and internal infrastructure ports; `action.http_request` workflow node supporting credential injection, SSRF checks, and response truncation (256 KB); Integrations page (`/integrations`) |
+| Super Admin Console | Cross-tenant administration (`/admin`) guarded by `is_superadmin`; real-time diagnostic health probes (Postgres, Redis, Temporal, Storage, Gateway); organizations search and filter by plan/status; plan override & trial day extension modal; organization suspension & restore controls with mandatory audit reasons; tenant inspection modal with usage breakdown and audit trails |
+| Billing Foundation | `BillingProvider` interface with `StripeTestBillingProvider` implementation running exclusively in test mode (never moving real money); test checkout sessions, portal sessions, and invoice listings; public webhook endpoint (`/api/v1/billing/webhook/stripe`) verifying HMAC signatures, replay protection via `processed_provider_events`, and automatic RLS context resolution via `org_id_by_stripe_customer_or_sub` |
 
 ## Test results (actually executed 2026-11-02)
-- Backend: `uv run pytest` → **81 passed** (M5: 19 tests — schedules incl. a real Temporal fire end to end and retry de-duplication, validation, templates incl. database-level read-only system templates, analytics ranges/exports, isolation). M4 baseline: 62 passed; M3 baseline: 48 passed.
+- Backend: `uv run pytest` → **99 passed** (M6: 18 new tests covering plans, metering concurrency, SSRF protection, credential encryption, outgoing webhook HMAC signatures, superadmin RLS, and billing lifecycle). M5 baseline: 81 passed; M4 baseline: 62 passed.
 - Gateway: `npm test` → **25 passed**.
-- Frontend: `npm test` → **17 passed**; `npm run typecheck` 0 errors; `npm run build` passes cleanly with per-route code splitting for schedules, templates, and analytics.
-- Manual (M5 review): weekly schedule for a tag created in the UI → Run now → WhatsApp message sent to the tagged simulator contact; analytics on real data; template preview → Use template → draft ready to publish.
+- Frontend: `npm test` → **17 passed**; `npm run typecheck` 0 errors; `npm run build` passes cleanly with per-route code splitting for billing, integrations, admin, schedules, templates, and analytics.
 
 ## Not built yet
-M6 (Commercial platform: plans & usage limits, billing foundation, integrations framework / webhooks, Super Admin console), M7 (Hardening), AI track.
+M7 (Hardening & Production Readiness), AI track (deferred by product owner until application completion).
 
 ## Known limitations
 - Real WhatsApp linking needs a phone scan — please test with a spare number (see WHATSAPP_CONNECTOR.md risks).
@@ -70,9 +77,6 @@ M6 (Commercial platform: plans & usage limits, billing foundation, integrations 
 - The backend uses the MinIO root credentials locally; production should use a bucket-scoped access key (`S3_ACCESS_KEY`/`S3_SECRET_KEY`).
 - WhatsApp session data is protected by folder isolation, not encryption at rest (see WHATSAPP_CONNECTOR.md).
 - `npm audit` reports a high-severity issue in `basic-ftp`, pulled in by puppeteer's proxy support; the gateway never uses FTP.
-- Workflows are acyclic (no loops) and branches don't re-join in parallel; the builder is not usable at phone
-  width (the list, Execution Logs, Schedules, Templates, and Analytics are). Approvals can be decided in Execution Logs only (no notifications yet).
+- Workflows are acyclic (no loops) and branches don't re-join in parallel; the builder is not usable at phone width (the list, Execution Logs, Schedules, Templates, Analytics, Integrations, and Billing are).
 - `mypy app` still reports pre-existing typing issues (redis/boto3 stubs, a few older call sites); ruff is clean.
-- Schedules can't be edited in the UI yet (API supports it: delete and recreate in the UI). Fan-out to very large tags runs in one activity (fine for thousands of contacts, not hundreds of thousands).
-- Analytics shows the message timeline as a table; per-agent response time is not computed yet.
 - Emails are sent inside the request (no queued retries yet). Org deletion is soft; no purge job yet.

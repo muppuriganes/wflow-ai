@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.database.session import SessionFactory, set_rls_context
-from app.models import Conversation, Workflow, WorkflowRun, WorkflowVersion
+from app.models import Conversation, Organization, Workflow, WorkflowRun, WorkflowVersion
 from app.services.realtime import publish
 from app.workflow_engine import client as engine
 from app.workflow_engine.expressions import keywords_match
@@ -62,6 +62,30 @@ async def create_and_start(
         return None  # this event already started this workflow
     run = await db.get(WorkflowRun, run_id)
     assert run is not None
+
+    org = await db.get(Organization, workflow.organization_id)
+    if org and org.status == "suspended":
+        log.warning("run_refused_org_suspended", run_id=str(run_id), org_id=str(workflow.organization_id))
+        run.status = "FAILED"
+        run.error = "Organization is suspended. Automation runs are paused."
+        await db.commit()
+        await publish(workflow.organization_id, "run.updated", run_id=run_id)
+        return run
+
+    if not is_test:
+        from app.core.errors import PlanLimitExceededError
+        from app.services import plans
+
+        try:
+            await plans.increment_monthly_usage(db, workflow.organization_id, "workflow_runs")
+        except PlanLimitExceededError as exc:
+            log.warning("run_refused_plan_limit", run_id=str(run_id), org_id=str(workflow.organization_id))
+            run.status = "FAILED"
+            run.error = f"Plan limit reached: {exc.message}"
+            await db.commit()
+            await publish(workflow.organization_id, "run.updated", run_id=run_id)
+            return run
+
     try:
         await engine.start(
             RunInput(

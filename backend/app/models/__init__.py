@@ -8,6 +8,16 @@ from app.models.automation import (
     WorkflowVersion,
 )
 from app.models.channels import ChannelConnection, ChannelEvent
+from app.models.commercial import (
+    IntegrationCredential,
+    InvoiceRecord,
+    Plan,
+    ProcessedProviderEvent,
+    Subscription,
+    UsageCounter,
+    WebhookDelivery,
+    WebhookEndpoint,
+)
 from app.models.crm import CustomerActivity, CustomFieldDefinition, FollowUpTask, Lead
 from app.models.governance import AuditLog
 from app.models.identity import (
@@ -64,4 +74,12 @@ __all__ = [
     "RolePermission",
     "User",
     "UserActionToken",
+    "Plan",
+    "Subscription",
+    "UsageCounter",
+    "InvoiceRecord",
+    "ProcessedProviderEvent",
+    "WebhookEndpoint",
+    "WebhookDelivery",
+    "IntegrationCredential",
 ]

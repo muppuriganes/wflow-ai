@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calendar, MoreHorizontal, Pause, Play, Plus, RefreshCw, Trash2, Workflow } from "lucide-react";
+import { Calendar, Edit, MoreHorizontal, Pause, Play, Plus, RefreshCw, Trash2, Workflow } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ export function SchedulesPage() {
   const org = useCurrentOrg();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
 
   const list = useQuery({
     queryKey: orgKeys.scoped(org.id, "schedules"),
@@ -200,6 +201,9 @@ export function SchedulesPage() {
                             <DropdownMenuItem onClick={() => triggerMutation.mutate(schedule.id)}>
                               <RefreshCw /> Run now
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setEditingSchedule(schedule)}>
+                              <Edit /> Edit schedule
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-danger focus:text-danger"
@@ -223,7 +227,14 @@ export function SchedulesPage() {
         )}
       </Card>
 
-      <CreateScheduleDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CreateScheduleDialog
+        open={createOpen || !!editingSchedule}
+        schedule={editingSchedule}
+        onOpenChange={(open) => {
+          if (!open) setEditingSchedule(null);
+          setCreateOpen(open);
+        }}
+      />
     </>
   );
 }

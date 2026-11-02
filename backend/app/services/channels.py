@@ -11,6 +11,7 @@ from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.logging import get_logger
 from app.core.rate_limit import get_redis
 from app.models import ChannelConnection, ChannelEvent
+from app.services import plans
 from app.services.audit import record_audit
 from app.services.gateway import GatewayUnavailableError, get_gateway
 from app.services.organizations import OrgContext
@@ -67,14 +68,18 @@ async def create_connection(
     settings = get_settings()
     if channel_type == "simulator" and not settings.simulator_enabled:
         raise AppError("The simulator channel is disabled on this server", code="channel_unavailable")
+    ctx.require_not_suspended()
+    _sub, plan = await plans.get_effective_plan(db, ctx.org_id)
+    plan_limit = plan.limits.get("max_channels", settings.max_connections_per_org)
+    max_allowed = min(settings.max_connections_per_org, plan_limit)
     count = await db.scalar(
         select(func.count())
         .select_from(ChannelConnection)
         .where(ChannelConnection.organization_id == ctx.org_id, ChannelConnection.deleted_at.is_(None))
     )
-    if (count or 0) >= settings.max_connections_per_org:
+    if (count or 0) >= max_allowed:
         raise ConflictError(
-            f"Your plan allows {settings.max_connections_per_org} connections. Remove one to add another.",
+            f"Your plan allows {max_allowed} connections. Remove one to add another.",
             code="connection_limit",
         )
     conn = ChannelConnection(

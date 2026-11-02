@@ -30,6 +30,9 @@ class Organization(UUIDPrimaryKey, Timestamps, Base):
     timezone: Mapped[str] = mapped_column(String(64), default="UTC", server_default="UTC")
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     deleted_at: Mapped[datetime | None]
+    status: Mapped[str] = mapped_column(String(32), default="active", server_default=text("'active'"))
+    suspended_at: Mapped[datetime | None]
+    suspended_reason: Mapped[str | None] = mapped_column(String(255), default=None)
 
 
 class Permission(UUIDPrimaryKey, Base):

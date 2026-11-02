@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,12 @@ import { inboxApi } from "@/services/inbox";
 import { schedulesApi } from "@/services/schedules";
 import { workflowsApi } from "@/services/workflows";
 import { orgKeys, useCurrentOrg } from "@/stores/organization";
-import type { ScheduleType, Tag } from "@/types/api";
+import type { Schedule, ScheduleType, Tag } from "@/types/api";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  schedule?: Schedule | null;
 };
 
 const DAY_OPTIONS = [
@@ -28,7 +29,7 @@ const DAY_OPTIONS = [
   { value: "sun", label: "Sun" },
 ];
 
-export function CreateScheduleDialog({ open, onOpenChange }: Props) {
+export function CreateScheduleDialog({ open, onOpenChange, schedule }: Props) {
   const org = useCurrentOrg();
   const queryClient = useQueryClient();
 
@@ -42,6 +43,25 @@ export function CreateScheduleDialog({ open, onOpenChange }: Props) {
   const [date, setDate] = useState("");
   const [cronExpression, setCronExpression] = useState("0 9 * * 1-5");
   const [targetTagId, setTargetTagId] = useState("");
+
+  useEffect(() => {
+    if (open && schedule) {
+      setWorkflowId(schedule.workflow_id);
+      setName(schedule.name);
+      setDescription(schedule.description || "");
+      setFrequency(schedule.schedule_type);
+      setTargetTagId(schedule.target_tag_id || "");
+      const cfg = (schedule.config as Record<string, unknown>) || {};
+      if (typeof cfg.time === "string") setTime(cfg.time);
+      if (Array.isArray(cfg.days)) setSelectedDays(cfg.days as string[]);
+      if (typeof cfg.day_of_month === "number") setDayOfMonth(String(cfg.day_of_month));
+      if (typeof cfg.date === "string") setDate(cfg.date);
+      if (typeof cfg.cron === "string") setCronExpression(cfg.cron);
+      if (typeof cfg.cron_expression === "string") setCronExpression(cfg.cron_expression);
+    } else if (open && !schedule) {
+      reset();
+    }
+  }, [open, schedule]);
 
   const workflows = useQuery({
     queryKey: orgKeys.scoped(org.id, "workflows"),
@@ -71,6 +91,16 @@ export function CreateScheduleDialog({ open, onOpenChange }: Props) {
         config.date = date;
       }
 
+      if (schedule) {
+        return schedulesApi.update(org.id, schedule.id, {
+          name: name.trim(),
+          description: description.trim() || null,
+          schedule_type: frequency,
+          config,
+          target_tag_id: targetTagId || null,
+        });
+      }
+
       return schedulesApi.create(org.id, {
         workflow_id: workflowId,
         name: name.trim(),
@@ -81,7 +111,7 @@ export function CreateScheduleDialog({ open, onOpenChange }: Props) {
       });
     },
     onSuccess: () => {
-      toast.success("Schedule created successfully");
+      toast.success(schedule ? "Schedule updated successfully" : "Schedule created successfully");
       void queryClient.invalidateQueries({ queryKey: orgKeys.scoped(org.id, "schedules") });
       onOpenChange(false);
       reset();
@@ -118,7 +148,7 @@ export function CreateScheduleDialog({ open, onOpenChange }: Props) {
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Create schedule"
+      title={schedule ? "Edit schedule" : "Create schedule"}
       description={`Configured in organization timezone (${org.timezone || "UTC"}).`}
       size="md"
       footer={
@@ -130,7 +160,7 @@ export function CreateScheduleDialog({ open, onOpenChange }: Props) {
             onClick={() => create.mutate()}
             disabled={!workflowId || !name.trim() || create.isPending}
           >
-            {create.isPending ? "Creating..." : "Create schedule"}
+            {create.isPending ? "Saving..." : schedule ? "Save changes" : "Create schedule"}
           </Button>
         </>
       }

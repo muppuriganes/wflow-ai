@@ -247,12 +247,54 @@ async def get_full_analytics(
         )
         .group_by(User.id, User.full_name)
     )
+    # 1b. Per-agent first response time
+    first_in_agent = (
+        select(Message.conversation_id.label("cid"), func.min(Message.created_at).label("at"))
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Message.organization_id == org_id,
+            Message.direction == "inbound",
+            Conversation.created_at >= start_dt,
+            Conversation.created_at <= end_dt,
+        )
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+    first_out_by_user = (
+        select(
+            first_in_agent.c.cid,
+            Message.sent_by_user_id.label("uid"),
+            func.min(Message.created_at).label("at"),
+        )
+        .join(
+            Message,
+            and_(Message.conversation_id == first_in_agent.c.cid, Message.created_at >= first_in_agent.c.at),
+        )
+        .where(
+            Message.direction == "outbound",
+            Message.sent_by_user_id.is_not(None),
+        )
+        .group_by(first_in_agent.c.cid, Message.sent_by_user_id)
+        .subquery()
+    )
+    user_response_times = await db.execute(
+        select(
+            first_out_by_user.c.uid,
+            func.avg(func.extract("epoch", first_out_by_user.c.at - first_in_agent.c.at)),
+        )
+        .join(first_in_agent, first_in_agent.c.cid == first_out_by_user.c.cid)
+        .group_by(first_out_by_user.c.uid)
+    )
+    user_resp_map = {
+        uid: round(float(avg_s), 1) for uid, avg_s in user_response_times.all() if uid and avg_s is not None
+    }
+
     by_agent = [
         AgentPerformanceStat(
             user_id=str(uid),
             name=name,
             resolved_count=cnt,
-            avg_response_time_seconds=None,
+            avg_response_time_seconds=user_resp_map.get(uid),
         ).model_dump()
         for uid, name, cnt in agent_rows.all()
     ]

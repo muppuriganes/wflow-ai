@@ -37,6 +37,7 @@ from app.schemas.workflows import (
     WorkflowOut,
     WorkflowSummary,
 )
+from app.services import plans
 from app.services.audit import record_audit
 from app.services.inbox import users_by_id
 from app.services.organizations import OrgContext
@@ -301,8 +302,11 @@ async def publish_workflow(
 async def set_status(db: AsyncSession, ctx: OrgContext, workflow_id: uuid.UUID, status: str) -> WorkflowOut:
     ctx.require("workflows.publish")
     wf = await _get(db, ctx, workflow_id)
-    if status == "active" and not wf.published_version_id:
-        raise ConflictError("Publish the workflow before activating it", code="not_published")
+    if status == "active":
+        ctx.require_not_suspended()
+        if not wf.published_version_id:
+            raise ConflictError("Publish the workflow before activating it", code="not_published")
+        await plans.check_resource_limit(db, ctx.org_id, "max_workflows")
     wf.status = status
     record_audit(db, f"workflow.{status}", organization_id=ctx.org_id, actor_user_id=ctx.user.id,
                  target_type="workflow", target_id=wf.id)  # fmt: skip

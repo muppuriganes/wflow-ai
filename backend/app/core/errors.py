@@ -53,6 +53,33 @@ class RateLimitedError(AppError):
     code = "rate_limited"
 
 
+class ValidationError(AppError):
+    status_code = 422
+    code = "validation_error"
+
+
+class PlanLimitExceededError(AppError):
+    status_code = 402
+    code = "plan_limit_reached"
+
+    def __init__(
+        self, message: str, *, metric: str | None = None, limit: int | None = None, used: int | None = None
+    ) -> None:
+        details = {}
+        if metric is not None:
+            details["metric"] = metric
+        if limit is not None:
+            details["limit"] = limit
+        if used is not None:
+            details["used"] = used
+        super().__init__(message, code="plan_limit_reached", details=details if details else None)
+
+
+class OrganizationSuspendedError(AppError):
+    status_code = 403
+    code = "organization_suspended"
+
+
 def _envelope(request: Request, status: int, code: str, message: str, details: Any = None) -> JSONResponse:
     body = {
         "error": {

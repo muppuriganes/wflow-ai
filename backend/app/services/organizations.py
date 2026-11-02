@@ -15,6 +15,7 @@ from app.core.security import generate_token, hash_token
 from app.database.session import set_rls_context
 from app.models import Invitation, Organization, OrganizationMember, Role, User
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate
+from app.services import plans
 from app.services.audit import record_audit
 
 
@@ -34,6 +35,19 @@ class OrgContext:
     @property
     def user_id(self) -> uuid.UUID:
         return self.user.id
+
+    @property
+    def is_suspended(self) -> bool:
+        return self.organization.status == "suspended"
+
+    def require_not_suspended(self) -> None:
+        if self.is_suspended:
+            from app.core.errors import OrganizationSuspendedError
+
+            raise OrganizationSuspendedError(
+                "This organization is currently suspended. Please contact support.",
+                details={"reason": self.organization.suspended_reason},
+            )
 
     @property
     def rank(self) -> int:
@@ -103,6 +117,7 @@ async def create_organization(db: AsyncSession, user: User, data: OrganizationCr
         details={"name": org.name},
     )
     await db.flush()
+    await plans.get_or_create_subscription(db, org.id)
     return org
 
 
@@ -287,6 +302,8 @@ def invitation_status(inv: Invitation) -> str:
 
 async def create_invitation(db: AsyncSession, ctx: OrgContext, email: str, role_key: str) -> Invitation:
     ctx.require("members.invite")
+    ctx.require_not_suspended()
+    await plans.check_resource_limit(db, ctx.org_id, "max_members")
     email = email.strip().lower()
     role = await get_assignable_role(db, role_key)
     if role.rank > ctx.rank:

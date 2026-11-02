@@ -35,7 +35,12 @@
 - Custom field values validated against definitions (unknown keys rejected); contact timeline append-only.
 - CRM cross-tenant access returns 404 (tested), including creating a lead for another org's contact.
 
-## Planned
+## Commercial Platform & Integrations (M6)
+- **SSRF protection:** Synchronous DNS pre-resolution and IP validation on all user-supplied URLs (`action.http_request` workflow nodes and webhook endpoints). Blocks loopback (127.0.0.0/8, ::1), private IPv4 ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), IPv6 ULA/link-local, cloud instance metadata (`169.254.169.254`), multicast, and internal service ports (55432, 56379, 57233, 8100, etc.).
+- **Credential encryption at rest:** Integration credentials (Bearer tokens, API keys) encrypted with authenticated AES-256-GCM via `INTEGRATION_ENCRYPTION_KEY`. API responses and audit logs return only masked strings (`••••1234`).
+- **Webhook signing & replay protection:** Outgoing webhooks signed with HMAC-SHA256 (`X-WFlow-Signature: sha256=...`). External billing webhooks verify cryptographic signatures with timestamp window checks and deduplicate event IDs in `processed_provider_events`.
+- **Super Admin isolation:** Admin console strictly guarded by `require_superadmin` (`is_superadmin = true`). Database policies grant read access to org records while forbidding message body disclosure. Superadmin action audit events are strictly recorded with `audit_superadmin_insert`.
+
+## Planned (M7 & Later)
 - CSP for the SPA (with nginx in production), MFA (TOTP), account lockout after repeated failures,
-  credential encryption at rest for integrations (M6) and WhatsApp session data (RemoteAuth store),
-  dependency and container scanning in CI, backup/restore runbook (M7).
+  WhatsApp session data encryption (RemoteAuth store), dependency and container scanning in CI, backup/restore runbook (M7).

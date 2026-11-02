@@ -85,6 +85,22 @@ The builder's React Flow graph is stored as JSONB (`workflows.draft_definition`)
 immutable `workflow_versions` row with the definition and its compiled plan; runs reference the version
 they started with. Steps are typed, registry-defined operations — there is no user code execution.
 
+### ADR-011 — Commercial platform, billing abstraction & usage metering
+Tenant quotas (seats, channels, workflows, schedules, monthly runs, monthly messages, storage) are
+metered at the database layer. Monthly usage counters (`usage_counters`) use concurrency-safe PostgreSQL
+upserts (`ON CONFLICT (organization_id, year_month) DO UPDATE`). Commercial billing uses an abstract
+`BillingProvider` interface with a `StripeTestBillingProvider` implementing test-mode checkout sessions,
+customer portal sessions, and replay-protected webhook ingestion (`processed_provider_events`). Webhook
+endpoints resolve tenant RLS context via `SECURITY DEFINER` function `org_id_by_stripe_customer_or_sub`.
+
+### ADR-012 — SSRF protection & encrypted credential vault
+Outgoing HTTP actions (`action.http_request`) and webhook destinations are protected by synchronous DNS
+pre-resolution and IP filtering: loopback, private ranges (RFC 1918), link-local cloud metadata
+(`169.254.169.254`), and infrastructure ports (Postgres, Redis, Temporal, Gateway) are strictly blocked.
+Third-party API keys and Bearer tokens are encrypted at rest with AES-256-GCM using `INTEGRATION_ENCRYPTION_KEY`,
+with masked strings (`••••1234`) returned in API responses and logs. Outgoing webhooks carry HMAC-SHA256
+signatures (`X-WFlow-Signature: sha256=...`) and auto-pause after 10 consecutive failures.
+
 ## Backend layout
 
 ```

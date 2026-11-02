@@ -1,16 +1,20 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    admin,
     analytics,
     auth,
+    billing,
     channels,
     crm,
     health,
     inbox,
+    integrations,
     internal,
     invitations,
     me,
     organizations,
+    plans,
     roles,
     schedules,
     stream,
@@ -21,9 +25,12 @@ from app.api.v1 import (
 api_router = APIRouter(prefix="/api/v1")
 for module in (
     health,
+    admin,
     auth,
     me,
     organizations,
+    plans,
+    billing,
     invitations,
     roles,
     channels,
@@ -33,6 +40,7 @@ for module in (
     schedules,
     templates,
     analytics,
+    integrations,
     stream,
     internal,
 ):

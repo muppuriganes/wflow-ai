@@ -120,5 +120,24 @@ ext_run_at, 	otal_runs |
 - contacts (organization_id, created_at)
 - ollow_up_tasks (organization_id, due_at, completed_at)
 
+## Commercial Platform (M6)
+
+| Table | Notes |
+|---|---|
+| plans | Global catalog: key, name, description, price_cents_monthly, price_cents_yearly, currency, limits JSONB, features JSONB, is_active |
+| subscriptions | organization_id, plan_id, status (active/trialing/canceled/past_due), billing_interval, current_period_start, current_period_end, trial_end, cancel_at_period_end, provider, provider_customer_id, provider_subscription_id |
+| usage_counters | organization_id, year_month (YYYY-MM), workflow_runs_count, outbound_messages_count, last_reset_at; UNIQUE(organization_id, year_month) |
+| invoices | organization_id, invoice_number, amount_cents, currency, status, period_start, period_end, pdf_url |
+| processed_provider_events | provider, event_id, event_type, payload JSONB, processed_at (replay protection for webhook ingestion) |
+| webhooks | organization_id, name, target_url, events text[], secret_hash, is_active, consecutive_failures, disabled_reason |
+| webhook_deliveries | organization_id, webhook_id, event_type, event_id, payload JSONB, response_status, response_body, duration_ms, attempt, success, error |
+| integration_credentials | organization_id, name, type (api_key/bearer/basic), encrypted_secret (AES-256-GCM), masked_secret |
+
+### RLS Policies (M6)
+- plans: SELECT policy `is_active = true` (or superadmin); tenant writes revoked.
+- subscriptions, usage_counters, invoices, webhooks, webhook_deliveries, integration_credentials: standard tenant isolation `organization_id = app_current_org_id()`.
+- Superadmin policies: `app_current_user_is_superadmin()` grants read access across organizations for the platform administration console and allows audit logging inserts without tenant context (`audit_superadmin_insert`).
+- `org_id_by_stripe_customer_or_sub(p_cust, p_sub)` (SECURITY DEFINER) resolves the tenant organization for external billing webhooks prior to establishing RLS context.
+
 ## Planned (later milestones)
-Integrations framework, billing foundation, Super Admin console (M6), hardening & observability (M7) — each with organization_id + RLS.
+Hardening & observability (M7), AI track.

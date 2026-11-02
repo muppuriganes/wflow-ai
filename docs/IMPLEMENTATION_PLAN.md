@@ -14,6 +14,6 @@ builds passing and `DEVELOPMENT_STATUS.md` updated.
 | M3 | Inbox & CRM | Real-time inbox (SSE), assignment, notes, tags, status/priority, human takeover, attachments (MinIO), contacts + custom fields, lead pipeline, follow-up tasks, customer timeline | ✅ Done |
 | M4 | Workflow engine | React Flow editor, validation/compilation, versions & publishing, Temporal execution, rule-based nodes (triggers, conditions, actions, data, logic, human), execution monitoring | ✅ Done |
 | M5 | Schedules, templates, analytics | Timezone-aware schedules (Temporal), starter template library with canvas preview, dashboard & analytics from real data, CSV export | ✅ Done |
-| M6 (next) | Commercial platform | Plans & usage limits, billing foundation, integrations framework (webhooks/REST), Super Admin console | Planned |
-| M7 | Hardening | OpenTelemetry/Prometheus/Grafana, load & security testing, backups, production config, deployment docs | Planned |
+| M6 | Commercial platform | Plans & usage limits, billing foundation (Stripe test provider), integrations framework (signed webhooks, encrypted credentials, SSRF guard), Super Admin console | ✅ Done |
+| M7 (next) | Hardening | OpenTelemetry/Prometheus/Grafana, load & security testing, backups, production config, deployment docs | Planned |
 | AI | AI track | Ollama + model router, RAG on pgvector, agents & tool registry — plugs in as new node types and screens | After M7 |
