@@ -20,10 +20,22 @@ export const registerSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   organization_name: z.string().trim().min(2, "Use at least 2 characters").max(200),
+  // About the business, for the team that reviews new organizations.
+  business_type: z.string().trim().min(2, "Tell us what kind of business it is").max(120),
+  phone: z.string().trim().regex(/^\+?[0-9 ()-]{7,20}$/, "Enter a phone number with country code"),
+  team_size: z.enum(["1", "2-5", "6-20", "21-100", "100+"]),
+  country: z.string().trim().max(120).optional(),
+  website: z.string().trim().max(200).optional(),
+  use_case: z.string().trim().max(1000).optional(),
 });
 
 /** Signing up from an invitation: the user joins that organization instead of creating one. */
-export const inviteRegisterSchema = registerSchema.extend({ organization_name: z.string().optional() });
+export const inviteRegisterSchema = registerSchema.extend({
+  organization_name: z.string().optional(),
+  business_type: z.string().optional(),
+  phone: z.string().optional(),
+  team_size: z.string().optional(),
+});
 
 export const resetSchema = z
   .object({ password: passwordSchema, confirm: z.string() })

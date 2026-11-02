@@ -4,12 +4,13 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.email import OutgoingEmail, send_email_safely
 from app.core.errors import AppError, ConflictError, NotFoundError, PermissionDeniedError
+from app.core.rate_limit import get_redis
 from app.core.rbac import OWNER_ROLE_KEY
 from app.core.security import generate_token, hash_token
 from app.database.session import set_rls_context
@@ -25,8 +26,11 @@ class OrgContext:
 
     user: User
     organization: Organization
-    membership: OrganizationMember
+    membership: OrganizationMember | None  # None for a Super Admin support session
     permissions: frozenset[str]
+    role: Role
+    support_session: bool = False
+    access_block: str | None = None  # see access_block()
 
     @property
     def org_id(self) -> uuid.UUID:
@@ -51,7 +55,7 @@ class OrgContext:
 
     @property
     def rank(self) -> int:
-        return self.membership.role.rank
+        return self.role.rank
 
     def require(self, permission: str) -> None:
         if permission not in self.permissions:
@@ -94,12 +98,15 @@ async def create_organization(db: AsyncSession, user: User, data: OrganizationCr
     if (owned or 0) >= get_settings().max_organizations_per_user:
         raise AppError("Organization limit reached", code="organization_limit")
 
+    needs_approval = get_settings().org_approval_required and not user.is_superadmin
     org = Organization(
         id=uuid.uuid4(),
         name=data.name,
         slug=_slugify(data.name),
         timezone=data.timezone,
         created_by_user_id=user.id,
+        approval_status="pending" if needs_approval else "approved",
+        request_details=data.request.model_dump(exclude_none=True) if data.request else {},
     )
     # The RLS insert policy only accepts rows for the active org, so switch to it first.
     await set_rls_context(db, org_id=org.id)
@@ -155,10 +162,77 @@ async def resolve_org_context(db: AsyncSession, user: User, org_id: uuid.UUID) -
         )
     ).first()
     if row is None:
-        raise NotFoundError("Organization not found")
+        return await _support_context(db, user, org_id)
     membership, org = row
     permissions = frozenset(p.code for p in membership.role.permissions)
-    return OrgContext(user=user, organization=org, membership=membership, permissions=permissions)
+    return OrgContext(user=user, organization=org, membership=membership, permissions=permissions,
+                      role=membership.role, access_block=await access_block(db, org))  # fmt: skip
+
+
+SUPPORT_ROLE_KEY = "viewer"
+
+
+async def _support_context(db: AsyncSession, user: User, org_id: uuid.UUID) -> OrgContext:
+    """A Super Admin may open a workspace they don't belong to only while its owner allows support
+    access, and then only read-only (viewer rights, GET requests). Every day of access is audited."""
+    until = (
+        await db.scalar(text("SELECT org_support_access_until(:o)"), {"o": org_id})
+        if user.is_superadmin
+        else None
+    )
+    if until is None or until <= datetime.now(UTC):
+        raise NotFoundError("Organization not found")
+    org = await db.get(Organization, org_id)
+    if org is None:
+        raise NotFoundError("Organization not found")
+    role = await get_system_role(db, SUPPORT_ROLE_KEY)
+    permissions = frozenset(p.code for p in role.permissions)
+    if await get_redis().set(f"support:audit:{org_id}:{user.id}", "1", ex=86400, nx=True):
+        record_audit(db, "support.workspace_opened", organization_id=org_id, actor_user_id=user.id,
+                     target_type="organization", target_id=org_id, details={"until": until.isoformat()})  # fmt: skip
+        await db.commit()
+        await set_rls_context(db, user_id=user.id, org_id=org_id)
+    return OrgContext(user=user, organization=org, membership=None, permissions=permissions, role=role,
+                      support_session=True, access_block=None)  # fmt: skip
+
+
+async def access_block(db: AsyncSession, org: Organization) -> str | None:
+    """Why the workspace is closed, if it is: `pending` / `rejected` approval, or `billing_required`
+    (billing is on and there is no paid subscription or running trial). Needs the org's RLS context."""
+    if org.approval_status in ("pending", "rejected"):
+        return org.approval_status
+    if org.billing_required:
+        sub = await plans.get_or_create_subscription(db, org.id)
+        trial_running = (
+            sub.status == "trialing" and sub.trial_end is not None and sub.trial_end > datetime.now(UTC)
+        )
+        if sub.status != "active" and not trial_running:
+            return "billing_required"
+    return None
+
+
+# Organization routes (after /organizations/{id}) that stay open while the workspace is blocked.
+_ALWAYS_OPEN = {("GET", ""), ("GET", "/events/stream")}
+_OPEN_WHILE_UNPAID = ("/plans", "/billing")
+
+
+def enforce_access(ctx: OrgContext, method: str, subpath: str) -> None:
+    """Applied to every organization route (see api.deps.get_org_context)."""
+    if ctx.support_session and method != "GET":
+        raise PermissionDeniedError("Support access is read-only", code="support_read_only")
+    block = ctx.access_block
+    if block is None or (method, subpath) in _ALWAYS_OPEN:
+        return
+    if block == "billing_required" and subpath.startswith(_OPEN_WHILE_UNPAID):
+        return
+    messages = {
+        "pending": "Your organization is waiting for approval. We'll email you as soon as it's reviewed.",
+        "rejected": "Your organization request was not approved.",
+        "billing_required": "Add billing to continue using this workspace.",
+    }
+    raise PermissionDeniedError(
+        messages[block], code=f"org_{block}" if block != "billing_required" else block
+    )
 
 
 async def update_organization(db: AsyncSession, ctx: OrgContext, data: OrganizationUpdate) -> Organization:

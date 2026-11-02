@@ -42,7 +42,9 @@ export function CreateOrganizationDialog({ open, onOpenChange }: { open: boolean
       const org = await orgApi.create(values);
       await queryClient.invalidateQueries({ queryKey: orgKeys.all });
       switchTo(org.id);
-      toast.success(`${org.name} created`);
+      toast.success(
+        org.approval_status === "pending" ? `Request for ${org.name} sent — we'll email you when it's approved` : `${org.name} created`,
+      );
       reset();
       onOpenChange(false);
       navigate("/");
@@ -56,7 +58,7 @@ export function CreateOrganizationDialog({ open, onOpenChange }: { open: boolean
       open={open}
       onOpenChange={onOpenChange}
       title="New organization"
-      description="Each organization has its own team, channels, data and billing."
+      description="Each organization has its own team, channels, data and billing. New organizations are reviewed by our team before they open."
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>

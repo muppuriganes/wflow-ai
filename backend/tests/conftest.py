@@ -28,6 +28,8 @@ os.environ["TEMPORAL_ADDRESS"] = os.environ.get("TEMPORAL_ADDRESS") or str(
 )
 os.environ["TEMPORAL_TASK_QUEUE"] = f"wflow-tests-{uuid.uuid4().hex[:8]}"
 os.environ["WORKFLOW_TIME_SCALE"] = "0.0005"
+# Organizations are approved instantly in tests unless a test turns approval on (see test_platform_admin).
+os.environ["ORG_APPROVAL_REQUIRED"] = "false"
 # Separate Redis database so test traffic never consumes the dev server's rate-limit quota.
 _redis_base = str(_env.get("REDIS_URL") or "redis://127.0.0.1:56379/0").rsplit("/", 1)[0]
 os.environ["REDIS_URL"] = os.environ.get("TEST_REDIS_URL") or f"{_redis_base}/15"
@@ -174,3 +176,23 @@ async def temporal_worker() -> AsyncIterator[None]:
     await worker.shutdown()
     await asyncio.gather(task, return_exceptions=True)
     engine.set_client(None)
+
+
+async def enable_billing(org_id: str, *, trial_days: int | None = None) -> None:
+    """Turns billing on for an organization, as a Super Admin would."""
+    import uuid as _uuid
+    from datetime import UTC, datetime, timedelta
+
+    from app.database.session import SessionFactory, set_rls_context
+    from app.models import Organization
+    from app.services.plans import get_or_create_subscription
+
+    async with SessionFactory() as db:
+        await set_rls_context(db, user_id=None, org_id=_uuid.UUID(org_id))
+        org = await db.get(Organization, _uuid.UUID(org_id))
+        assert org is not None
+        org.billing_required = True
+        sub = await get_or_create_subscription(db, org.id)
+        if trial_days:
+            sub.status, sub.trial_end = "trialing", datetime.now(UTC) + timedelta(days=trial_days)
+        await db.commit()

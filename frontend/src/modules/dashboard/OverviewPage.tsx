@@ -147,7 +147,7 @@ export function OverviewPage() {
             <div className="p-4">
               <div className="text-xs text-muted">Success Rate</div>
               <div className="mt-1 text-xl font-bold">
-                {overview.data.workflow_success_rate !== null ? `${overview.data.workflow_success_rate}%` : "100%"}
+                {overview.data.workflow_success_rate !== null ? `${Math.round(overview.data.workflow_success_rate)}%` : "—"}
               </div>
             </div>
           </div>

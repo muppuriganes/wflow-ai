@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, CreatedAt, Timestamps, UUIDPrimaryKey
@@ -33,6 +35,16 @@ class Organization(UUIDPrimaryKey, Timestamps, Base):
     status: Mapped[str] = mapped_column(String(32), default="active", server_default=text("'active'"))
     suspended_at: Mapped[datetime | None]
     suspended_reason: Mapped[str | None] = mapped_column(String(255), default=None)
+    # Sign-up requests wait for a Super Admin: pending | approved | rejected
+    approval_status: Mapped[str] = mapped_column(String(16), default="approved", server_default="approved")
+    request_details: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
+    reviewed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    reviewed_at: Mapped[datetime | None]
+    rejection_reason: Mapped[str | None] = mapped_column(String(500), default=None)
+    # Billing on: the organization must pay (or be in a trial) to use the workspace.
+    billing_required: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    # Owner-granted window in which a Super Admin may open the workspace read-only.
+    support_access_until: Mapped[datetime | None]
 
 
 class Permission(UUIDPrimaryKey, Base):

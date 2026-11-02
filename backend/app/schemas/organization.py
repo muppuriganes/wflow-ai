@@ -26,9 +26,24 @@ class RoleSummary(APIModel):
     rank: int
 
 
+Short = Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]
+
+
+class OrganizationRequest(BaseModel):
+    """What a new organization tells the platform team when it asks to join."""
+
+    business_type: Short | None = None
+    phone: Annotated[str, StringConstraints(strip_whitespace=True, max_length=32)] | None = None
+    website: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = None
+    team_size: Literal["1", "2-5", "6-20", "21-100", "100+"] | None = None
+    country: Short | None = None
+    use_case: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+
+
 class OrganizationCreate(BaseModel):
     name: OrgName
     timezone: Timezone = "UTC"
+    request: OrganizationRequest | None = None
 
 
 class OrganizationUpdate(BaseModel):
@@ -49,6 +64,14 @@ class MyOrganizationOut(OrganizationOut):
 
     role: RoleSummary
     permissions: list[str]
+    status: str = "active"
+    approval_status: str = "approved"
+    rejection_reason: str | None = None
+    billing_required: bool = False
+    # Why the workspace is closed, if it is: pending | rejected | billing_required
+    access_block: str | None = None
+    support_session: bool = False
+    support_access_until: datetime | None = None
 
 
 class MemberOut(BaseModel):

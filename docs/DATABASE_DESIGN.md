@@ -141,3 +141,13 @@ ext_run_at, 	otal_runs |
 
 ## Planned (later milestones)
 Hardening & observability (M7), AI track.
+
+
+## Platform governance (2026-11-03)
+`organizations` gains `approval_status` (pending/approved/rejected; existing rows approved), `request_details` JSONB,
+`reviewed_by_user_id`, `reviewed_at`, `rejection_reason`, `billing_required` (existing rows off) and
+`support_access_until`. Subscriptions may be `incomplete` (billing on, waiting for checkout).
+
+SECURITY DEFINER functions: `org_support_access_until(uuid)` and `support_access_orgs()` (support sessions),
+`platform_stats(timestamptz)` and `org_activity_stats(timestamptz)` — counts only, and they raise unless the caller
+is a Super Admin. Super Admins can also read `invoices` (`invoices_superadmin_select`).

@@ -122,8 +122,11 @@ async def register(db: AsyncSession, data: RegisterRequest) -> IssuedTokens:
     db.add(user)
     await db.flush()
     await set_rls_context(db, user_id=user.id)
+    new_org = None
     if data.organization_name:
-        await create_organization(db, user, OrganizationCreate(name=data.organization_name))
+        new_org = await create_organization(
+            db, user, OrganizationCreate(name=data.organization_name, request=data.organization_request)
+        )
         await set_rls_context(db, org_id=None)
     record_audit(db, "auth.registered", actor_user_id=user.id, target_type="user", target_id=user.id)
     verify_token = await _create_action_token(
@@ -132,6 +135,10 @@ async def register(db: AsyncSession, data: RegisterRequest) -> IssuedTokens:
     tokens, _ = await _issue_tokens(db, user)
     await db.commit()
     await _send_verification(user, verify_token)
+    if new_org is not None and new_org.approval_status == "pending":
+        from app.services.platform_admin import notify_new_request
+
+        await notify_new_request(db, user, new_org)
     return tokens
 
 

@@ -1,6 +1,6 @@
 # Development status
 
-_Last updated: 2026-11-03 — end of M7, after the M6/M7 review._
+_Last updated: 2026-11-03 — platform governance (approvals, billing switch, Super Admin console)._
 
 ## Working now (implemented, tested, verified in the browser)
 
@@ -70,6 +70,15 @@ _Last updated: 2026-11-03 — end of M7, after the M6/M7 review._
 | Disaster Recovery & Backup | Cross-platform automated PostgreSQL backup scripts (`scripts/backup.sh`, `scripts/backup.ps1`) using custom-format compression (`pg_dump -Fc`), SHA-256 checksum generation, and rolling 7-day retention pruning; verified restore scripts (`scripts/restore.sh`, `scripts/restore.ps1`) terminating active connections, executing `pg_restore`, and re-running `sync-rbac`; complete runbook with RPO (<24h) and RTO (<30m) targets in `docs/DISASTER_RECOVERY.md` |
 | Load Testing & Benchmarking | High-concurrency async load testing benchmark (`backend/tests/load/load_test.py`) measuring RPS and p50/p95/p99 response latency across health probes, Prometheus metrics, and authenticated API routes |
 
+### Platform governance (2026-11-03)
+| Area | Details |
+|---|---|
+| Sign-up requests | The sign-up page asks for business details (type, WhatsApp phone, team size, country, website, use case). New organizations — from sign-up or created in the app — wait for a Super Admin (`ORG_APPROVAL_REQUIRED`, on by default). Super Admins are emailed; the requester sees a "waiting for approval" screen and gets an email on approval or rejection (with the reason). Super Admins' own organizations skip review |
+| Workspace gate | One check on every organization route: pending/rejected organizations can only read their own status; with billing on and nothing paid (or no running trial) only Plans & Billing work and the app redirects there. Workflows, schedules, webhook triggers and sending pause too |
+| Billing switch | Per organization, set at approval and changeable any time. **Off:** the Super Admin grants a plan; nothing to pay; customers see "managed by the WFlow team". **On:** the organization must check out (optional trial first); the Free plan is hidden |
+| Super Admin console | Separate area `/admin` with its own layout: Dashboard (platform counts, 30/7/90-day activity chart, plans, billing split, revenue from paid invoices, live system health), Requests (approve with billing choice / reject with reason), Organizations (search, status filter, plan, billing, team · numbers · workflows, messages, last activity) with a detail page — Overview, WhatsApp numbers, Members, Billing (switch, plan, trial, invoices), Settings (name, timezone), Activity, Support access, suspend/restore — and Users & logins (search, sign-in history with IPs, disable/enable, sign out everywhere, send password reset, grant/remove Super Admin) |
+| Privacy & support access | Counts and metadata only by default: Super Admins never see conversations or customer data. The owner can allow read-only support access for 1, 3 or 7 days (Security page); the Super Admin then opens the workspace as a viewer (every request read-only, banner shown) and each day of access is logged for the owner to see |
+
 ### M6/M7 review fixes (2026-11-03)
 | Area | What was wrong → what it does now |
 |---|---|
@@ -85,14 +94,13 @@ _Last updated: 2026-11-03 — end of M7, after the M6/M7 review._
 | Landing page | Unbacked claims ("99.98% uptime", "↓68%", "live telemetry", Meta API "swappable") → labelled as an example tour; claims removed |
 
 ## Test results (actually executed 2026-11-03)
-- Backend: `uv run pytest` → **107 passed**. The review replaced mocked integration tests with real ones: a local HTTP receiver, real inbound events and Temporal deliveries (signatures, retry, auto-disable), the HTTP step with a saved credential, SSRF cases, monthly limits, checkout forgery/cross-org/open-redirect, production secret guards, and super-admin scoping of ordinary screens. Earlier: M7 103 (as reported), M5 81, M4 62.
+- Backend: `uv run pytest` → **114 passed** (governance: 7 tests in `test_platform_admin.py` — approval flow and emails, rejection, billing switch incl. checkout and trial, support access read-only/audit/revocation, owner-only control, user management, statistics permissions incl. raw SQL). Before governance: **107 passed**. The review replaced mocked integration tests with real ones: a local HTTP receiver, real inbound events and Temporal deliveries (signatures, retry, auto-disable), the HTTP step with a saved credential, SSRF cases, monthly limits, checkout forgery/cross-org/open-redirect, production secret guards, and super-admin scoping of ordinary screens. Earlier: M7 103 (as reported), M5 81, M4 62.
 - Gateway: `npm test` → **25 passed**.
-- Frontend: `npm test` → **21 passed** (4 tests in `LandingPage.test.tsx` verifying hero, interactive studio tabs, monthly/yearly pricing toggle, and FAQ accordion); `npm run typecheck` 0 errors; `npm run build` passes cleanly with per-route code splitting for landing, billing, integrations, admin, schedules, templates, and analytics.
+- Frontend: `npm test` → **22 passed** (4 tests in `LandingPage.test.tsx` verifying hero, interactive studio tabs, monthly/yearly pricing toggle, and FAQ accordion); `npm run typecheck` 0 errors; `npm run build` passes cleanly with per-route code splitting for landing, billing, integrations, admin, schedules, templates, and analytics.
 
 ## Not built yet
 - AI track (deferred by product owner until application completion).
 - A live payment provider (Stripe or Razorpay): only the test-mode provider exists, so paid plans cannot be sold yet.
-- Super Admin user management (search users, disable accounts, revoke sessions, login history).
 
 ## Known limitations
 - Real WhatsApp linking needs a phone scan — please test with a spare number (see WHATSAPP_CONNECTOR.md risks).

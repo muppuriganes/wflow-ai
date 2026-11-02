@@ -10,7 +10,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import get_settings
-from tests.conftest import register
+from tests.conftest import enable_billing, register
 
 
 def generate_stripe_signature(payload_str: str, secret: str | None = None) -> str:
@@ -28,6 +28,7 @@ async def test_billing_checkout_and_portal(client: AsyncClient, make_client: obj
 
     a = await register(client, email="billing_owner@example.com")
     base = f"/api/v1/organizations/{a.org_id}/billing"
+    await enable_billing(a.org_id, trial_days=14)
     app_url = get_settings().cors_origin_list[0] + "/billing"
 
     evil = await client.post(f"{base}/checkout", headers=a.headers,

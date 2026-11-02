@@ -1,8 +1,14 @@
-import type { AuditLog, MessageResponse, Page, Session, TokenResponse, User } from "@/types/api";
+import type { AuditLog, MessageResponse, OrganizationRequest, Page, Session, TokenResponse, User } from "@/types/api";
 import { api } from "./api";
 
 export const authApi = {
-  register: (data: { email: string; password: string; full_name: string; organization_name?: string }) =>
+  register: (data: {
+    email: string;
+    password: string;
+    full_name: string;
+    organization_name?: string;
+    organization_request?: OrganizationRequest;
+  }) =>
     api<TokenResponse>("/auth/register", { method: "POST", body: data, auth: false }),
   login: (data: { email: string; password: string }) =>
     api<TokenResponse>("/auth/login", { method: "POST", body: data, auth: false }),

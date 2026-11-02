@@ -50,7 +50,11 @@ async def list_organizations(
         .outerjoin(Plan, Plan.id == Subscription.plan_id)
         .outerjoin(OrganizationMember, OrganizationMember.organization_id == Organization.id)
         .outerjoin(Workflow, Workflow.organization_id == Organization.id)
-        .outerjoin(ChannelConnection, ChannelConnection.organization_id == Organization.id)
+        .outerjoin(
+            ChannelConnection,
+            (ChannelConnection.organization_id == Organization.id) & ChannelConnection.deleted_at.is_(None),
+        )
+        .where(Organization.deleted_at.is_(None))
         .group_by(Organization.id, Subscription.id, Plan.id)
     )
 
@@ -63,8 +67,12 @@ async def list_organizations(
             )
         )
 
-    if status:
-        base_query = base_query.where(Organization.status == status)
+    if status in ("pending", "rejected"):
+        base_query = base_query.where(Organization.approval_status == status)
+    elif status:
+        base_query = base_query.where(
+            Organization.status == status, Organization.approval_status == "approved"
+        )
 
     if plan_key:
         base_query = base_query.where(Plan.key == plan_key)
@@ -82,8 +90,13 @@ async def list_organizations(
                 Organization.slug.ilike(term),
             )
         )
-    if status:
-        count_subquery = count_subquery.where(Organization.status == status)
+    count_subquery = count_subquery.where(Organization.deleted_at.is_(None))
+    if status in ("pending", "rejected"):
+        count_subquery = count_subquery.where(Organization.approval_status == status)
+    elif status:
+        count_subquery = count_subquery.where(
+            Organization.status == status, Organization.approval_status == "approved"
+        )
     if plan_key:
         count_subquery = count_subquery.where(Plan.key == plan_key)
 
@@ -94,6 +107,9 @@ async def list_organizations(
     query = base_query.order_by(Organization.created_at.desc()).offset(offset).limit(page_size)
     res = await db.execute(query)
 
+    from app.services.platform_admin import org_activity
+
+    activity = await org_activity(db)
     items = []
     for row in res.all():
         org = row[0]
@@ -117,6 +133,11 @@ async def list_organizations(
                 "members_count": m_count or 0,
                 "workflows_count": w_count or 0,
                 "channels_count": c_count or 0,
+                "approval_status": org.approval_status,
+                "billing_required": org.billing_required,
+                "messages_30d": int((activity.get(org.id) or {}).get("messages_in", 0) or 0)
+                + int((activity.get(org.id) or {}).get("messages_out", 0) or 0),
+                "last_activity_at": (activity.get(org.id) or {}).get("last_activity_at"),
             }
         )
 
@@ -142,7 +163,9 @@ async def get_organization_detail(db: AsyncSession, org_id: uuid.UUID) -> dict[s
     w_count = await db.scalar(select(func.count(Workflow.id)).where(Workflow.organization_id == org_id)) or 0
     c_count = (
         await db.scalar(
-            select(func.count(ChannelConnection.id)).where(ChannelConnection.organization_id == org_id)
+            select(func.count(ChannelConnection.id)).where(
+                ChannelConnection.organization_id == org_id, ChannelConnection.deleted_at.is_(None)
+            )
         )
         or 0
     )
@@ -201,7 +224,23 @@ async def get_organization_detail(db: AsyncSession, org_id: uuid.UUID) -> dict[s
         "workflows_count": w_count,
         "channels_count": c_count,
         "recent_audit_events": audit_events,
+        "timezone": org.timezone,
+        "approval_status": org.approval_status,
+        "request_details": org.request_details or {},
+        "rejection_reason": org.rejection_reason,
+        "reviewed_at": org.reviewed_at,
+        "billing_required": org.billing_required,
+        "support_access_until": org.support_access_until,
+        "activity_30d": {
+            k: v for k, v in ((await _activity(db)).get(org.id) or {}).items() if k != "organization_id"
+        },
     }
+
+
+async def _activity(db: AsyncSession) -> dict[uuid.UUID, dict[str, Any]]:
+    from app.services.platform_admin import org_activity
+
+    return await org_activity(db)
 
 
 async def assign_plan(

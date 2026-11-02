@@ -202,9 +202,14 @@ async def test_webhooks_fire_for_real_events_and_retry(
     retried = [evts for evts in by_type.values() if len(evts) == 2]
     assert len(retried) == 1 and retried[0][0]["id"] == retried[0][1]["id"]  # the same event, delivered again
 
-    log = (await client.get(f"{base}/webhooks/{hook['id']}/deliveries", headers=a.headers)).json()
-    attempts = sorted((d["event_type"], d["attempt"], d["success"]) for d in log)
+    # The receiver sees a request just before its attempt is logged, so give the log a moment.
     retried_type = retried[0][0]["type"]
+    for _ in range(50):
+        log = (await client.get(f"{base}/webhooks/{hook['id']}/deliveries", headers=a.headers)).json()
+        attempts = sorted((d["event_type"], d["attempt"], d["success"]) for d in log)
+        if (retried_type, 2, True) in attempts:
+            break
+        await asyncio.sleep(0.1)
     assert (retried_type, 1, False) in attempts and (retried_type, 2, True) in attempts
 
     # A lead moving stage is delivered too; unsubscribed events are not.

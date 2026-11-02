@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
+import { Badge, StatusDot } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardFooter, CardHeader } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
@@ -237,6 +237,67 @@ function AccountActivityCard() {
   );
 }
 
+const SUPPORT_LABELS: Record<string, string> = {
+  "support.access_granted": "Support access allowed",
+  "support.access_revoked": "Support access turned off",
+  "support.workspace_opened": "WFlow support opened the workspace",
+};
+
+/** The owner decides if and when the WFlow team may look inside the workspace (read-only). */
+function SupportAccessCard() {
+  const org = useCurrentOrg();
+  const queryClient = useQueryClient();
+  const status = useQuery({ queryKey: orgKeys.scoped(org.id, "support-access"), queryFn: () => orgApi.supportAccess(org.id) });
+  const set = useMutation({
+    mutationFn: (hours: 0 | 24 | 72 | 168) => orgApi.setSupportAccess(org.id, hours),
+    onSuccess: (res) => {
+      toast.success(res.support_access_until ? "Support access allowed" : "Support access turned off");
+      void queryClient.invalidateQueries({ queryKey: orgKeys.scoped(org.id, "support-access") });
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+  const until = status.data?.support_access_until;
+  const active = !!until && new Date(until) > new Date();
+  return (
+    <Card>
+      <CardHeader
+        title="Support access"
+        description="The WFlow team can't see your conversations or customer data. If you need help, you can let support view your workspace read-only for a limited time."
+      />
+      <CardBody className="space-y-3 text-[13px]">
+        {active ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusDot tone="info" label={`Allowed until ${formatDateTime(until!)}`} />
+            <Button variant="danger-outline" size="sm" loading={set.isPending} onClick={() => set.mutate(0)}>
+              Turn off now
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-muted">Off. Allow for:</span>
+            {([24, 72, 168] as const).map((h) => (
+              <Button key={h} variant="secondary" size="sm" disabled={set.isPending} onClick={() => set.mutate(h)}>
+                {h === 168 ? "7 days" : `${h / 24} day${h === 24 ? "" : "s"}`}
+              </Button>
+            ))}
+          </div>
+        )}
+        {!!status.data?.events.length && (
+          <ul className="space-y-1 border-t pt-3 text-xs">
+            {status.data.events.map((e, i) => (
+              <li key={i} className="flex gap-2">
+                <span>{SUPPORT_LABELS[e.action] ?? e.action}</span>
+                {e.by && <span className="text-muted">· {e.by}</span>}
+                <span className="ml-auto text-muted">{formatDateTime(e.at)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
 export function SecurityPage() {
   const org = useCurrentOrg();
   return (
@@ -245,6 +306,7 @@ export function SecurityPage() {
       <div className="space-y-4">
         <ChangePasswordCard />
         <SessionsCard />
+        {org.role.key === "owner" && <SupportAccessCard />}
         {org.can("audit.read") && <OrgAuditCard />}
         <AccountActivityCard />
       </div>

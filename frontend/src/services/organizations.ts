@@ -19,6 +19,10 @@ export const orgApi = {
   update: (id: string, data: { name?: string; timezone?: string }) =>
     api<MyOrganization>(org(id), { method: "PATCH", body: data }),
   remove: (id: string) => api<void>(org(id), { method: "DELETE" }),
+  supportAccess: (id: string) =>
+    api<{ support_access_until: string | null; events: { action: string; at: string; by: string | null }[] }>(`${org(id)}/support-access`),
+  setSupportAccess: (id: string, hours: 0 | 24 | 72 | 168) =>
+    api<{ support_access_until: string | null }>(`${org(id)}/support-access`, { method: "POST", body: { hours } }),
 
   members: (id: string) => api<Member[]>(`${org(id)}/members`),
   updateMember: (id: string, memberId: string, role_key: string) =>

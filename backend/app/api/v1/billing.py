@@ -28,6 +28,10 @@ async def create_checkout(
     ctx.require_not_suspended()
 
     _require_app_url(data.return_url)
+    if not ctx.organization.billing_required:
+        raise AppError(
+            "Your plan is managed by the WFlow team. Contact support to change it.", code="billing_managed"
+        )
     if not get_settings().billing_test_mode:
         # Only the test provider exists so far; never pretend a live payment can be taken.
         raise AppError(

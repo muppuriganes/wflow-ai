@@ -220,3 +220,29 @@ Base URL `/api/v1`. Interactive OpenAPI docs: `/api/docs` (schema at `/api/opena
 | POST | `/admin/organizations/{id}/plan` | `{plan_key, trial_days?}`; override plan and extend trial period |
 | POST | `/admin/organizations/{id}/suspend` | `{reason}`; freezes tenant outbound messages, schedules, and triggers |
 | POST | `/admin/organizations/{id}/restore` | Restores tenant to active operational status |
+
+
+## Platform governance (2026-11-03)
+
+### Sign-up and organizations
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/auth/register` | Optional `organization_request: {business_type, phone, website, team_size: 1\|2-5\|6-20\|21-100\|100+, country, use_case}`; the organization starts `pending` when approval is required |
+| GET | `/organizations`, `/organizations/{id}` | Each organization also returns `status`, `approval_status`, `rejection_reason`, `billing_required`, `access_block` (`pending`\|`rejected`\|`billing_required`\|null), `support_session`, `support_access_until`. For a Super Admin the list includes workspaces whose owner currently allows support access |
+| GET / POST | `/organizations/{id}/support-access` | GET: `org.update`; status and the support log. POST `{hours: 0\|24\|72\|168}`: owner only (`owner_only` otherwise) |
+
+Blocked workspaces answer 403 with `org_pending`, `org_rejected` or `billing_required` on every route except `GET /organizations/{id}`, its event stream, and (for billing) `/plans*` and `/billing*`. Support sessions answer 403 `support_read_only` to anything but GET. `POST /plans/change` now always answers 402 (plans are set by the platform team or by checkout); `POST /billing/checkout` answers 400 `billing_managed` when billing is off.
+
+### Super Admin (`/admin`, `is_superadmin` only)
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/stats?days=` | Platform counts and daily series (no content) |
+| GET | `/admin/requests?status=pending\|approved\|rejected` | With requester and request details |
+| POST | `/admin/organizations/{id}/approve` | `{billing_required, plan_key, trial_days?}`; 409 if already approved; emails the owner |
+| POST | `/admin/organizations/{id}/reject` | `{reason}`; emails the owner |
+| POST | `/admin/organizations/{id}/billing` | `{billing_required, plan_key?, trial_days?}` |
+| PATCH | `/admin/organizations/{id}` | `{name?, timezone?}` |
+| GET | `/admin/organizations/{id}/channels`, `/members`, `/invoices` | Numbers and status, members with last sign-in, invoices |
+| GET | `/admin/plans` | All plans |
+| GET | `/admin/users?q=&page=`, `/admin/users/{id}` | Detail includes memberships, active sessions, sign-in history |
+| POST | `/admin/users/{id}/active` `{value}`, `/sign-out`, `/password-reset`, `/superadmin` `{value}` | Can't disable or demote yourself |

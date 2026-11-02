@@ -73,18 +73,10 @@ export function BillingPage() {
     enabled: org.can("billing.manage"),
   });
 
-  const canManage = org.can("billing.manage");
+  // Billing off: the WFlow team arranges the plan, so there is nothing to buy or cancel here.
+  const managed = !org.billing_required;
+  const canManage = org.can("billing.manage") && !managed;
 
-  const changePlanMutation = useMutation({
-    mutationFn: (planKey: string) =>
-      plansApi.changePlan(org.id, { plan_key: planKey, billing_interval: billingInterval }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(orgKeys.scoped(org.id, "plans-usage"), data);
-      void queryClient.invalidateQueries({ queryKey: orgKeys.scoped(org.id, "invoices") });
-      toast.success(`Switched to the ${data.plan.name} plan`);
-    },
-    onError: (err) => toast.error(errorMessage(err)),
-  });
 
   const checkoutMutation = useMutation({
     mutationFn: (planKey: string) =>
@@ -142,11 +134,14 @@ export function BillingPage() {
   }
 
   const usage = usageQuery.data as PlanUsageOverview;
-  const plans = (plansQuery.data || []) as Plan[];
+  // With billing on, a paid plan is required.
+  const plans = ((plansQuery.data || []) as Plan[]).filter((p) => managed || p.price_cents_monthly > 0);
   const currentPlan = usage?.plan;
   const currentSub = usage?.subscription;
 
-  const isCurrentPlan = (plan: Plan) => plan.id === currentPlan?.id;
+  // Only a paid or trialing subscription is "current"; an unpaid one can still be checked out.
+  const paying = currentSub?.status === "active" || currentSub?.status === "trialing";
+  const isCurrentPlan = (plan: Plan) => paying && plan.id === currentPlan?.id;
 
   return (
     <div className="space-y-8">
@@ -168,8 +163,15 @@ export function BillingPage() {
         }
       />
 
+      {managed && (
+        <div className="rounded-lg border border-success/30 bg-success-soft/40 px-4 py-3 text-xs text-foreground">
+          <span className="font-semibold text-success">Your plan is managed by the WFlow team.</span> There's nothing to pay in the app.
+          To change your plan or limits, contact support.
+        </div>
+      )}
+
       {/* Stripe Test Mode Banner */}
-      <div className="flex items-center gap-3 rounded-lg border border-info/40 bg-info-soft/30 px-4 py-3 text-xs text-foreground">
+      <div className={`items-center gap-3 rounded-lg border border-info/40 bg-info-soft/30 px-4 py-3 text-xs text-foreground ${managed ? "hidden" : "flex"}`}>
         <Sparkles className="size-4 shrink-0 text-info" />
         <div className="flex-1">
           <span className="font-semibold text-info">Test Billing Mode Active:</span> Stripe checkout and billing run
@@ -207,6 +209,10 @@ export function BillingPage() {
                   ? `${usage.trial_days_remaining} day${usage.trial_days_remaining === 1 ? "" : "s"} remaining in trial`
                   : "Trial active"}
               </span>
+            ) : managed ? (
+              "Arranged by the WFlow team"
+            ) : !paying ? (
+              <span className="font-medium text-warning">Payment needed — choose a plan below to start</span>
             ) : (
               `Billed ${currentSub?.billing_interval ?? "monthly"} · Renews ${formatDate(currentSub?.current_period_end ?? "")}`
             )
@@ -222,7 +228,7 @@ export function BillingPage() {
               >
                 {resumeMutation.isPending ? "Resuming…" : "Resume Subscription"}
               </Button>
-            ) : currentPlan?.key !== "free" ? (
+            ) : paying && currentSub?.status === "active" && currentPlan?.key !== "free" ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -352,27 +358,27 @@ export function BillingPage() {
                       <ul className="space-y-1.5 text-muted">
                         <li className="flex items-center gap-2">
                           <Check className="size-3.5 text-primary shrink-0" />
-                          <span>{plan.limits.seats ?? 1} Team Member{(plan.limits.seats ?? 1) > 1 ? "s" : ""}</span>
+                          <span>{plan.limits.max_members ?? 1} Team Member{(plan.limits.max_members ?? 1) > 1 ? "s" : ""}</span>
                         </li>
                         <li className="flex items-center gap-2">
                           <Check className="size-3.5 text-primary shrink-0" />
-                          <span>{plan.limits.channel_connections ?? 1} Channel Connection{(plan.limits.channel_connections ?? 1) > 1 ? "s" : ""}</span>
+                          <span>{plan.limits.max_channels ?? 1} Channel Connection{(plan.limits.max_channels ?? 1) > 1 ? "s" : ""}</span>
                         </li>
                         <li className="flex items-center gap-2">
                           <Check className="size-3.5 text-primary shrink-0" />
-                          <span>{plan.limits.workflows ?? 3} Active Workflows</span>
+                          <span>{plan.limits.max_workflows ?? 3} Active Workflows</span>
                         </li>
                         <li className="flex items-center gap-2">
                           <Check className="size-3.5 text-primary shrink-0" />
-                          <span>{plan.limits.schedules ?? 1} Automation Schedule{(plan.limits.schedules ?? 1) > 1 ? "s" : ""}</span>
+                          <span>{plan.limits.max_active_schedules ?? 1} Automation Schedule{(plan.limits.max_active_schedules ?? 1) > 1 ? "s" : ""}</span>
                         </li>
                         <li className="flex items-center gap-2">
                           <Check className="size-3.5 text-primary shrink-0" />
-                          <span>{(plan.limits.monthly_workflow_runs ?? 100).toLocaleString()} Workflow Runs/mo</span>
+                          <span>{(plan.limits.max_monthly_runs ?? 100).toLocaleString()} Workflow Runs/mo</span>
                         </li>
                         <li className="flex items-center gap-2">
                           <Check className="size-3.5 text-primary shrink-0" />
-                          <span>{(plan.limits.monthly_messages ?? 500).toLocaleString()} Messages/mo</span>
+                          <span>{(plan.limits.max_monthly_messages ?? 500).toLocaleString()} Messages/mo</span>
                         </li>
                       </ul>
                     </div>
@@ -389,20 +395,16 @@ export function BillingPage() {
                       variant={plan.key === "free" ? "secondary" : "primary"}
                       className="w-full text-xs gap-1"
                       onClick={() => {
-                        if (plan.key === "free") {
-                          changePlanMutation.mutate(plan.key);
-                        } else {
-                          checkoutMutation.mutate(plan.key);
-                        }
+                        checkoutMutation.mutate(plan.key);
                       }}
-                      disabled={changePlanMutation.isPending || checkoutMutation.isPending}
+                      disabled={checkoutMutation.isPending}
                     >
                       <span>Select {plan.name}</span>
                       <ArrowRight className="size-3" />
                     </Button>
                   ) : (
                     <Button variant="secondary" className="w-full text-xs" disabled>
-                      Owner Only
+                      {managed ? "Managed by WFlow" : "Owner Only"}
                     </Button>
                   )}
                 </CardFooter>

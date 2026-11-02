@@ -51,3 +51,9 @@
 
 ## Planned (Later)
 - MFA (TOTP), WhatsApp session data encryption (RemoteAuth store), dependency and container scanning in CI.
+
+
+## Platform governance
+- **Organization approval:** new organizations can't connect numbers, run automations or send until a Super Admin approves them; enforced in one place for every organization route and again on background paths (workflow runs, sending).
+- **Super Admin privacy:** the console uses counts and metadata (statistics come from functions that return numbers only). Conversations and customer data are reachable only through owner-granted, time-limited, read-only support access; every day of access is written to the organization's audit log, which the owner sees on their Security page.
+- **Account control:** disabling a user revokes all their sessions immediately; Super Admins can't disable or demote themselves. All Super Admin actions are audited.

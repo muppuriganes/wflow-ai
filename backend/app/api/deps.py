@@ -12,7 +12,7 @@ from app.core.rate_limit import enforce_rate_limit
 from app.core.security import decode_access_token
 from app.database.session import get_db, set_rls_context
 from app.models import User
-from app.services.organizations import OrgContext, resolve_org_context
+from app.services.organizations import OrgContext, enforce_access, resolve_org_context
 
 DB = Annotated[AsyncSession, Depends(get_db)]
 
@@ -35,8 +35,14 @@ async def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-async def get_org_context(db: DB, user: CurrentUser, org_id: Annotated[uuid.UUID, Path()]) -> OrgContext:
-    return await resolve_org_context(db, user, org_id)
+async def get_org_context(
+    request: Request, db: DB, user: CurrentUser, org_id: Annotated[uuid.UUID, Path()]
+) -> OrgContext:
+    ctx = await resolve_org_context(db, user, org_id)
+    prefix = f"/api/v1/organizations/{org_id}"
+    path = request.url.path
+    enforce_access(ctx, request.method, path[len(prefix) :] if path.startswith(prefix) else path)
+    return ctx
 
 
 OrgCtx = Annotated[OrgContext, Depends(get_org_context)]

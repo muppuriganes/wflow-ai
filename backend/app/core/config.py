@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     workflow_time_scale: float = 1.0
 
     # --- Commercial platform & Integrations (M6) ---
+    # New organizations wait for a Super Admin's approval before they can be used.
+    org_approval_required: bool = True
     # Development only: lets webhooks and HTTP steps call services on this machine or LAN.
     outbound_allow_private_networks: bool = False
     credentials_encryption_key: str = DEFAULT_CREDENTIALS_KEY

@@ -6,6 +6,7 @@ from typing import Annotated
 from pydantic import AfterValidator, BaseModel, EmailStr, Field, StringConstraints
 
 from app.schemas.common import APIModel
+from app.schemas.organization import OrganizationRequest
 
 
 def _check_password_strength(value: str) -> str:
@@ -25,6 +26,8 @@ class RegisterRequest(BaseModel):
     full_name: Name
     # Omitted when signing up through an invitation: the user joins that org instead.
     organization_name: OrgName | None = None
+    # About the business: shown to the platform team reviewing the organization request.
+    organization_request: OrganizationRequest | None = None
 
 
 class LoginRequest(BaseModel):

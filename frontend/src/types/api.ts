@@ -24,7 +24,30 @@ export type Organization = {
   created_at: string;
 };
 
-export type MyOrganization = Organization & { role: RoleSummary; permissions: string[] };
+export type OrgAccessBlock = "pending" | "rejected" | "billing_required";
+
+export type MyOrganization = Organization & {
+  role: RoleSummary;
+  permissions: string[];
+  status: string;
+  approval_status: "pending" | "approved" | "rejected";
+  rejection_reason: string | null;
+  billing_required: boolean;
+  /** Why the workspace is closed, if it is. */
+  access_block: OrgAccessBlock | null;
+  /** A Super Admin viewing the workspace read-only with the owner's permission. */
+  support_session: boolean;
+  support_access_until: string | null;
+};
+
+export type OrganizationRequest = {
+  business_type?: string;
+  phone?: string;
+  website?: string;
+  team_size?: "1" | "2-5" | "6-20" | "21-100" | "100+";
+  country?: string;
+  use_case?: string;
+};
 
 export type Member = {
   id: string;
@@ -667,6 +690,10 @@ export type AdminOrgListItem = {
   members_count: number;
   workflows_count: number;
   channels_count: number;
+  approval_status: string;
+  billing_required: boolean;
+  messages_30d: number;
+  last_activity_at: string | null;
 };
 
 export type AdminOrgListOut = {
@@ -695,8 +722,91 @@ export type AdminOrgDetailOut = {
     action: string;
     created_at: string;
     actor_email?: string;
-    metadata?: Record<string, any>;
+    target_type?: string | null;
+    details?: Record<string, unknown>;
   }>;
+  timezone: string;
+  approval_status: string;
+  request_details: OrganizationRequest;
+  rejection_reason: string | null;
+  reviewed_at: string | null;
+  billing_required: boolean;
+  support_access_until: string | null;
+  activity_30d: Partial<Record<"contacts" | "conversations" | "messages_in" | "messages_out" | "workflow_runs" | "workflow_runs_failed", number>> & {
+    last_activity_at?: string | null;
+  };
+};
+
+export type PlatformStats = {
+  days: number;
+  organizations_total: number;
+  organizations_pending: number;
+  organizations_suspended: number;
+  organizations_new: number;
+  organizations_active: number;
+  users_total: number;
+  users_new: number;
+  channels_connected: number;
+  messages_in: number;
+  messages_out: number;
+  workflow_runs: number;
+  workflow_runs_failed: number;
+  revenue_cents: number;
+  billing_on: number;
+  billing_off: number;
+  plans: { key: string; name: string; organizations: number }[];
+  daily: { day: string; messages: number; signups: number }[];
+};
+
+export type OrgRequestItem = {
+  id: string;
+  name: string;
+  created_at: string;
+  approval_status: string;
+  request_details: OrganizationRequest;
+  rejection_reason: string | null;
+  reviewed_at: string | null;
+  requester: { id: string; full_name: string; email: string; email_verified: boolean } | null;
+};
+
+export type AdminChannel = {
+  id: string;
+  display_name: string;
+  channel_type: string;
+  phone_number: string | null;
+  account_name: string | null;
+  status: string;
+  status_detail: string | null;
+  created_at: string;
+};
+
+export type AdminMember = {
+  id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  status: string;
+  last_login_at: string | null;
+  user_active: boolean;
+};
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  full_name: string;
+  is_active: boolean;
+  is_superadmin: boolean;
+  email_verified: boolean;
+  last_login_at: string | null;
+  created_at: string;
+  organizations: number;
+};
+
+export type AdminUserDetail = AdminUser & {
+  memberships: { organization_id: string; organization_name: string; role: string; status: string }[];
+  active_sessions: number;
+  login_events: { action: string; at: string; ip: string | null; user_agent: string | null; reason: string | null }[];
 };
 
 export type AdminHealth = {

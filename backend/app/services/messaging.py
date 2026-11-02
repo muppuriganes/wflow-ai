@@ -140,6 +140,12 @@ async def deliver(
             "This organization is suspended. Outbound messages are blocked.",
             details={"reason": org.suspended_reason},
         )
+    from app.services.organizations import access_block
+
+    if org and (block := await access_block(db, org)):
+        raise OrganizationSuspendedError("Sending is paused until billing is set up for this organization."
+                                         if block == "billing_required" else "This organization is not approved yet.",
+                                         code=f"org_{block}")  # fmt: skip
 
     await plans.increment_monthly_usage(db, org_id, "outbound_messages")
 

@@ -1,6 +1,6 @@
-import { Building2, Check, ChevronsUpDown, LogOut, Menu, Plus, Settings, X } from "lucide-react";
+import { Building2, Check, ChevronsUpDown, Clock, LogOut, Menu, Plus, RefreshCw, Settings, X, XCircle } from "lucide-react";
 import { useState } from "react";
-import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from "react-router";
+import { Link, Navigate, NavLink, Outlet, useLocation, useMatch, useNavigate } from "react-router";
 import { adminNav, type NavItem, platformAdminNav, workspaceNav } from "@/app/navigation";
 import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { useAuth } from "@/stores/auth";
 import { LiveUpdatesProvider, useLive } from "@/stores/live";
 import { OrganizationProvider, useOrganization } from "@/stores/organization";
 import { cn } from "@/utils/cn";
+import { formatDateTime } from "@/utils/format";
 import { VerifyEmailBanner } from "./VerifyEmailBanner";
 
 function NavSection({ title, items, onNavigate }: { title: string; items: NavItem[]; onNavigate: () => void }) {
@@ -65,7 +66,9 @@ function OrgSwitcher({ onCreate }: { onCreate: () => void }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-medium">{current?.name}</span>
-          <span className="block truncate text-[11px] text-muted">{current?.role.name}</span>
+          <span className="block truncate text-[11px] text-muted">
+            {current?.support_session ? "Support · read-only" : current?.role.name}
+          </span>
         </span>
         <ChevronsUpDown className="size-3.5 text-subtle" aria-hidden />
       </DropdownMenuTrigger>
@@ -81,6 +84,8 @@ function OrgSwitcher({ onCreate }: { onCreate: () => void }) {
           >
             <Building2 />
             <span className="flex-1 truncate">{org.name}</span>
+            {org.support_session && <span className="text-[10px] text-info">support</span>}
+            {org.access_block === "pending" && <span className="text-[10px] text-warning">pending</span>}
             {org.id === current?.id && <Check className="!text-primary" />}
           </DropdownMenuItem>
         ))}
@@ -156,6 +161,7 @@ function Shell() {
   const inInbox = useMatch("/inbox/*") !== null;
   const inBuilder = useMatch("/workflows/:workflowId") !== null;
   const fullBleed = inInbox || inBuilder;
+  const onBilling = useMatch("/billing") !== null;
 
   if (isLoading) {
     return (
@@ -170,6 +176,10 @@ function Shell() {
   if (!current) {
     return <NoOrganization onCreate={() => setCreateOpen(true)} createOpen={createOpen} setCreateOpen={setCreateOpen} hadOrgs={organizations.length > 0} />;
   }
+  if (current.access_block === "pending" || current.access_block === "rejected") {
+    return <WorkspaceClosed />;
+  }
+  const mustPay = current.access_block === "billing_required" && !onBilling;
 
   const closeMobile = () => setMobileOpen(false);
   return (
@@ -215,7 +225,21 @@ function Shell() {
           </div>
         </header>
         <VerifyEmailBanner />
-        {fullBleed ? (
+        {current.support_session && (
+          <div role="status" className="border-b border-info/20 bg-info-soft px-4 py-2 text-xs text-info lg:px-6">
+            You are viewing <strong>{current.name}</strong> read-only as WFlow support, with the owner's permission
+            {current.support_access_until && ` (until ${formatDateTime(current.support_access_until)})`}. Every visit is
+            logged and visible to the owner.
+          </div>
+        )}
+        {current.access_block === "billing_required" && (
+          <div role="alert" className="border-b border-warning/25 bg-warning-soft px-4 py-2 text-xs text-warning lg:px-6">
+            Billing is required for this workspace. Choose a plan to continue using {current.name}.
+          </div>
+        )}
+        {mustPay ? (
+          <Navigate to="/billing" replace />
+        ) : fullBleed ? (
           // Workspace screens like the inbox and the workflow builder manage their own panes and scrolling.
           <main className="min-h-0 flex-1 overflow-hidden">
             <Outlet />
@@ -229,6 +253,47 @@ function Shell() {
         )}
       </div>
       <CreateOrganizationDialog open={createOpen} onOpenChange={setCreateOpen} />
+    </div>
+  );
+}
+
+/** A workspace that is waiting for approval, or was not approved. */
+function WorkspaceClosed() {
+  const { signOut } = useAuth();
+  const { current, organizations, switchTo } = useOrganization();
+  if (!current) return null;
+  const pending = current.access_block === "pending";
+  const others = organizations.filter((o) => o.id !== current.id && !o.access_block);
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+      <BrandMark className="mb-4 size-9" />
+      <div className={cn("mb-3 flex size-10 items-center justify-center rounded-full", pending ? "bg-warning-soft text-warning" : "bg-danger-soft text-danger")}>
+        {pending ? <Clock className="size-5" aria-hidden /> : <XCircle className="size-5" aria-hidden />}
+      </div>
+      <h1 className="text-base font-semibold">
+        {pending ? `${current.name} is waiting for approval` : `${current.name} was not approved`}
+      </h1>
+      <p className="mt-1 max-w-md text-[13px] text-muted">
+        {pending
+          ? "Thanks for your request. Our team reviews new workspaces, usually within one business day. We'll email you as soon as it's approved."
+          : current.rejection_reason || "Our team couldn't approve this request."}
+      </p>
+      {!pending && <p className="mt-2 text-xs text-muted">Questions? Reply to the email we sent you.</p>}
+      <div className="mt-5 flex flex-wrap justify-center gap-2">
+        {pending && (
+          <Button variant="secondary" onClick={() => window.location.reload()}>
+            <RefreshCw /> Check again
+          </Button>
+        )}
+        {others.map((o) => (
+          <Button key={o.id} variant="secondary" onClick={() => switchTo(o.id)}>
+            Open {o.name}
+          </Button>
+        ))}
+        <Button variant="ghost" onClick={() => void signOut()}>
+          Sign out
+        </Button>
+      </div>
     </div>
   );
 }

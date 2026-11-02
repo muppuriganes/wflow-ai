@@ -171,6 +171,10 @@ class AdminOrgListItem(BaseModel):
     members_count: int
     workflows_count: int
     channels_count: int
+    approval_status: str = "approved"
+    billing_required: bool = False
+    messages_30d: int = 0
+    last_activity_at: datetime | None = None
 
 
 class AdminOrgListOut(BaseModel):
@@ -195,6 +199,14 @@ class AdminOrgDetailOut(BaseModel):
     workflows_count: int
     channels_count: int
     recent_audit_events: list[dict[str, Any]]
+    timezone: str = "UTC"
+    approval_status: str = "approved"
+    request_details: dict[str, Any] = {}
+    rejection_reason: str | None = None
+    reviewed_at: datetime | None = None
+    billing_required: bool = False
+    support_access_until: datetime | None = None
+    activity_30d: dict[str, Any] = {}
 
 
 class AdminAssignPlanIn(BaseModel):

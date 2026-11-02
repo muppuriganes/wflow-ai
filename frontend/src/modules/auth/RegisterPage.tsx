@@ -4,7 +4,7 @@ import { type Resolver, useForm } from "react-hook-form";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Input, NativeSelect } from "@/components/ui/input";
 import { Alert } from "@/components/ui/states";
 import { applyServerErrors } from "@/hooks/useServerErrors";
 import { AuthLayout } from "@/layouts/AuthLayout";
@@ -26,13 +26,43 @@ export function RegisterPage() {
     formState: { errors, isSubmitting },
   } = useForm<RegisterValues>({
     resolver: zodResolver(joiningInvite ? inviteRegisterSchema : registerSchema) as Resolver<RegisterValues>,
-    defaultValues: { full_name: "", email: params.get("email") ?? "", password: "", organization_name: "" },
+    defaultValues: {
+      full_name: "",
+      email: params.get("email") ?? "",
+      password: "",
+      organization_name: "",
+      business_type: "",
+      phone: "",
+      team_size: "2-5",
+      country: "",
+      website: "",
+      use_case: "",
+    },
   });
 
-  const onSubmit = handleSubmit(async ({ organization_name, ...values }) => {
+  const onSubmit = handleSubmit(async (form) => {
+    const { full_name, email, password, organization_name, business_type, phone, team_size, country, website, use_case } = form;
     setFormError(null);
     try {
-      signIn(await authApi.register(joiningInvite ? values : { ...values, organization_name }));
+      const account = { full_name, email, password };
+      signIn(
+        await authApi.register(
+          joiningInvite
+            ? account
+            : {
+                ...account,
+                organization_name,
+                organization_request: {
+                  business_type,
+                  phone,
+                  team_size,
+                  country: country || undefined,
+                  website: website || undefined,
+                  use_case: use_case || undefined,
+                },
+              },
+        ),
+      );
       navigate(next, { replace: true });
     } catch (err) {
       setFormError(applyServerErrors(err, setError, ["full_name", "email", "password", "organization_name"]));
@@ -41,8 +71,12 @@ export function RegisterPage() {
 
   return (
     <AuthLayout
-      title="Create your account"
-      subtitle="Set up your business workspace in under a minute."
+      title={joiningInvite ? "Create your account" : "Request your workspace"}
+      subtitle={
+        joiningInvite
+          ? "Create your account to join the team that invited you."
+          : "Tell us a little about your business. Our team reviews new workspaces, usually within one business day."
+      }
       footer={
         <>
           Already have an account?{" "}
@@ -64,12 +98,46 @@ export function RegisterPage() {
           <Input type="password" autoComplete="new-password" {...register("password")} />
         </Field>
         {!joiningInvite && (
-          <Field label="Organization name" error={errors.organization_name?.message} hint="Your company or team. You can rename it later.">
-            <Input autoComplete="organization" {...register("organization_name")} />
-          </Field>
+          <fieldset className="space-y-4 border-t pt-4">
+            <legend className="text-xs font-semibold uppercase tracking-wide text-muted">About your business</legend>
+            <Field label="Business name" error={errors.organization_name?.message} hint="Your company or team. You can rename it later.">
+              <Input autoComplete="organization" {...register("organization_name")} />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Type of business" error={errors.business_type?.message}>
+                <Input placeholder="e.g. Bakery, Clinic, Retail" {...register("business_type")} />
+              </Field>
+              <Field label="Business phone (WhatsApp)" error={errors.phone?.message}>
+                <Input type="tel" autoComplete="tel" placeholder="+91 98000 12345" {...register("phone")} />
+              </Field>
+              <Field label="Team size" error={errors.team_size?.message}>
+                <NativeSelect {...register("team_size")}>
+                  {["1", "2-5", "6-20", "21-100", "100+"].map((v) => (
+                    <option key={v} value={v}>
+                      {v === "1" ? "Just me" : `${v} people`}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Field label="Country (optional)" error={errors.country?.message}>
+                <Input autoComplete="country-name" {...register("country")} />
+              </Field>
+            </div>
+            <Field label="Website (optional)" error={errors.website?.message}>
+              <Input type="url" placeholder="https://" {...register("website")} />
+            </Field>
+            <Field label="What will you use WFlow for? (optional)" error={errors.use_case?.message}>
+              <textarea
+                className="min-h-20 w-full rounded-md border border-border-strong bg-surface px-2.5 py-2 text-[13px] focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15"
+                maxLength={1000}
+                placeholder="e.g. Reply to order questions and send delivery updates"
+                {...register("use_case")}
+              />
+            </Field>
+          </fieldset>
         )}
         <Button type="submit" className="w-full" size="lg" loading={isSubmitting}>
-          Create account
+          {joiningInvite ? "Create account" : "Send request"}
         </Button>
       </form>
     </AuthLayout>

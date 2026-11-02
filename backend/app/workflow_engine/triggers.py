@@ -64,10 +64,20 @@ async def create_and_start(
     assert run is not None
 
     org = await db.get(Organization, workflow.organization_id)
-    if org and org.status == "suspended":
-        log.warning("run_refused_org_suspended", run_id=str(run_id), org_id=str(workflow.organization_id))
+    from app.services.organizations import access_block
+
+    block = (
+        "suspended" if org and org.status == "suspended" else (await access_block(db, org) if org else None)
+    )
+    if block:
+        log.warning(
+            "run_refused_org_blocked", run_id=str(run_id), org_id=str(workflow.organization_id), reason=block
+        )
         run.status = "FAILED"
-        run.error = "Organization is suspended. Automation runs are paused."
+        run.error = {
+            "suspended": "Organization is suspended. Automation runs are paused.",
+            "billing_required": "Billing is required for this organization. Automation runs are paused.",
+        }.get(block, "This organization is not approved yet. Automation runs are paused.")
         await db.commit()
         await publish(workflow.organization_id, "run.updated", run_id=run_id)
         return run

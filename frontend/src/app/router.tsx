@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode } from "react";
 import { createBrowserRouter, Navigate, useLocation } from "react-router";
 import { Spinner } from "@/components/ui/states";
 import { AppLayout } from "@/layouts/AppLayout";
+import { AdminLayout } from "@/modules/admin/AdminLayout";
 import { AcceptInvitePage } from "@/modules/auth/AcceptInvitePage";
 import { ForgotPasswordPage } from "@/modules/auth/ForgotPasswordPage";
 import { LoginPage } from "@/modules/auth/LoginPage";
@@ -47,6 +48,14 @@ const comingSoonRoutes = workspaceNav
   .map((item) => ({ path: item.to.slice(1), element: <ComingSoonPage item={item} /> }));
 
 
+function SignedIn({ children }: { children: ReactNode }) {
+  const { status } = useAuth();
+  const location = useLocation();
+  if (status === "loading") return <FullPageSpinner />;
+  if (status === "anonymous") return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
+  return children;
+}
+
 function WorkspaceGate() {
   const { status } = useAuth();
   const location = useLocation();
@@ -79,6 +88,19 @@ export const router = createBrowserRouter([
   { path: "/landing", element: <LandingPage /> },
   { path: "/invite/:token", element: <AcceptInvitePage /> },
   {
+    // The Super Admin console: a separate area with its own layout and navigation.
+    path: "/admin",
+    element: <SignedIn><AdminLayout /></SignedIn>,
+    children: [
+      { index: true, lazy: page(() => import("@/modules/admin/AdminDashboardPage"), "AdminDashboardPage") },
+      { path: "requests", lazy: page(() => import("@/modules/admin/AdminRequestsPage"), "AdminRequestsPage") },
+      { path: "organizations", lazy: page(() => import("@/modules/admin/AdminOrganizationsPage"), "AdminOrganizationsPage") },
+      { path: "organizations/:orgId", lazy: page(() => import("@/modules/admin/AdminOrganizationPage"), "AdminOrganizationPage") },
+      { path: "users", lazy: page(() => import("@/modules/admin/AdminUsersPage"), "AdminUsersPage") },
+      { path: "users/:userId", lazy: page(() => import("@/modules/admin/AdminUsersPage"), "AdminUserPage") },
+    ],
+  },
+  {
     path: "/",
     element: <WorkspaceGate />,
     children: [
@@ -104,7 +126,6 @@ export const router = createBrowserRouter([
       { path: "team", lazy: page(() => import("@/modules/settings/TeamPage"), "TeamPage") },
       { path: "security", lazy: page(() => import("@/modules/settings/SecurityPage"), "SecurityPage") },
       { path: "billing", lazy: page(() => import("@/modules/billing/BillingPage"), "BillingPage") },
-      { path: "admin", lazy: page(() => import("@/modules/admin/AdminPage"), "AdminPage") },
       { path: "settings", lazy: page(() => import("@/modules/settings/SettingsPage"), "SettingsPage") },
       { path: "*", element: <NotFoundPage /> },
     ],

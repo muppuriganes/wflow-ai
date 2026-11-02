@@ -71,7 +71,7 @@ export const adminNav: NavItem[] = [
 ];
 
 export const platformAdminNav: NavItem[] = [
-  { to: "/admin", label: "Platform Admin", icon: ShieldAlert },
+  { to: "/admin", label: "Super Admin console", icon: ShieldAlert },
 ];
 
 export const MILESTONE_LABELS: Record<string, string> = {

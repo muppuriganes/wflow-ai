@@ -10,15 +10,25 @@ describe("passwordSchema", () => {
 });
 
 describe("registerSchema", () => {
+  const business = { business_type: "Bakery", phone: "+91 98000 12345", team_size: "2-5" as const };
+
   it("trims names and validates email", () => {
     const ok = registerSchema.safeParse({
       full_name: "  Ada  ",
       email: "ada@example.com",
       password: "Sup3r-secret",
       organization_name: "Acme",
+      ...business,
     });
     expect(ok.success && ok.data.full_name).toBe("Ada");
-    expect(registerSchema.safeParse({ full_name: "A", email: "nope", password: "x", organization_name: "A" }).success).toBe(false);
+    expect(registerSchema.safeParse({ full_name: "A", email: "nope", password: "x", organization_name: "A", ...business }).success).toBe(false);
+  });
+
+  it("asks new organizations about their business", () => {
+    const base = { full_name: "Ada", email: "ada@example.com", password: "Sup3r-secret", organization_name: "Acme" };
+    expect(registerSchema.safeParse(base).success).toBe(false);
+    expect(registerSchema.safeParse({ ...base, ...business, phone: "call me" }).success).toBe(false);
+    expect(registerSchema.safeParse({ ...base, ...business }).success).toBe(true);
   });
 });
 

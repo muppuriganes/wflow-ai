@@ -332,21 +332,12 @@ async def increment_monthly_usage(
 async def change_plan_self_service(
     db: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID, plan_key: str, interval: str
 ) -> None:
-    """Customers may switch to a free plan themselves; paid plans start only after payment
-    (billing checkout and the provider's webhook) or by a Super Admin."""
-    from app.services.audit import record_audit
+    """Plans are never switched directly by customers: with billing off the platform team sets the
+    plan (Super Admin console); with billing on a paid plan starts through checkout."""
+    from app.models.identity import Organization
 
-    plan = await get_plan_by_key(db, plan_key)
-    if plan.price_cents_monthly > 0 or plan.price_cents_yearly > 0:
-        raise PlanLimitExceededError(
-            "Paid plans start after checkout. Use “Select plan” on the Billing page.", metric="plan"
-        )
-    sub = await get_or_create_subscription(db, org_id)
-    previous = sub.plan_id
-    sub.plan_id, sub.plan, sub.billing_interval = plan.id, plan, interval
-    if sub.status in ("trialing", "canceled"):
-        sub.status = "active"
-        sub.trial_end = None
-    record_audit(db, "billing.plan_changed", organization_id=org_id, actor_user_id=user_id,
-                 target_type="subscription", target_id=sub.id,
-                 details={"plan": plan.key, "previous_plan_id": str(previous), "source": "self_service"})  # fmt: skip
+    org = await db.get(Organization, org_id)
+    if org is not None and org.billing_required:
+        raise PlanLimitExceededError("Choose a plan with “Select plan” on the Billing page.", metric="plan")
+    raise PlanLimitExceededError("Your plan is managed by the WFlow team. Contact support to change it.",
+                                 metric="plan")  # fmt: skip

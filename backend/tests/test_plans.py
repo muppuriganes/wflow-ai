@@ -9,7 +9,7 @@ from sqlalchemy import text
 from app.core.errors import PlanLimitExceededError
 from app.database.session import SessionFactory, set_rls_context
 from app.services import plans
-from tests.conftest import register
+from tests.conftest import enable_billing, register
 
 
 @pytest.mark.asyncio
@@ -121,17 +121,15 @@ async def test_atomic_concurrent_usage_counting(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_change_plan(client: AsyncClient) -> None:
-    """Self-service changes only reach free plans; paid plans need a completed checkout."""
+    """Customers never switch plans directly: the platform team does (billing off) or checkout does (on)."""
     a = await register(client, "owner-plans-change@example.com")
     url = f"/api/v1/organizations/{a.org_id}/plans/change"
-    paid = await client.post(
-        url, headers=a.headers, json={"plan_key": "business", "billing_interval": "yearly"}
-    )
-    assert paid.status_code == 402  # used to upgrade for free
-    usage = (await client.get(f"/api/v1/organizations/{a.org_id}/plans/usage", headers=a.headers)).json()
-    assert usage["plan"]["key"] == "growth"  # still the trial plan
-    free = await client.post(url, headers=a.headers, json={"plan_key": "free"})
-    assert free.status_code == 200 and free.json()["plan"]["key"] == "free"
+    for key in ("business", "free"):
+        res = await client.post(url, headers=a.headers, json={"plan_key": key})
+        assert res.status_code == 402 and "managed by the WFlow team" in res.json()["error"]["message"]
+    await enable_billing(a.org_id, trial_days=14)
+    res = await client.post(url, headers=a.headers, json={"plan_key": "business"})
+    assert res.status_code == 402 and "Billing page" in res.json()["error"]["message"]
 
 
 async def test_monthly_limits_are_enforced(client: AsyncClient, admin_engine: Any) -> None:
