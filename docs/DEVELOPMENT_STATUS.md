@@ -73,7 +73,7 @@ _Last updated: 2026-11-02 — end of M7._
 ## Test results (actually executed 2026-11-02)
 - Backend: `uv run pytest` → **103 passed** (M7: 4 new tests in `test_hardening.py` covering Prometheus metrics endpoint, production security headers, Redis-backed account lockout, and production environment startup validation). M6 baseline: 99 passed; M5 baseline: 81 passed; M4 baseline: 62 passed.
 - Gateway: `npm test` → **25 passed**.
-- Frontend: `npm test` → **17 passed**; `npm run typecheck` 0 errors; `npm run build` passes cleanly with per-route code splitting for billing, integrations, admin, schedules, templates, and analytics.
+- Frontend: `npm test` → **21 passed** (4 tests in `LandingPage.test.tsx` verifying hero, interactive studio tabs, monthly/yearly pricing toggle, and FAQ accordion); `npm run typecheck` 0 errors; `npm run build` passes cleanly with per-route code splitting for landing, billing, integrations, admin, schedules, templates, and analytics.
 
 ## Not built yet
 AI track (deferred by product owner until application completion).

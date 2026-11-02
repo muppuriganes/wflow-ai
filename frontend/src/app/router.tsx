@@ -10,6 +10,7 @@ import { ResetPasswordPage } from "@/modules/auth/ResetPasswordPage";
 import { VerifyEmailPage } from "@/modules/auth/VerifyEmailPage";
 import { ComingSoonPage } from "@/modules/coming-soon/ComingSoonPage";
 import { OverviewPage } from "@/modules/dashboard/OverviewPage";
+import { LandingPage } from "@/modules/landing/LandingPage";
 import { NotFoundPage } from "@/modules/NotFoundPage";
 import { RouteErrorPage } from "@/modules/RouteErrorPage";
 import { useAuth } from "@/stores/auth";
@@ -23,16 +24,7 @@ function FullPageSpinner() {
   );
 }
 
-function RequireAuth({ children }: { children: ReactNode }) {
-  const { status } = useAuth();
-  const location = useLocation();
-  if (status === "loading") return <FullPageSpinner />;
-  if (status === "anonymous") {
-    const next = location.pathname + location.search;
-    return <Navigate to={next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`} replace />;
-  }
-  return children;
-}
+
 
 function GuestOnly({ children }: { children: ReactNode }) {
   const { status } = useAuth();
@@ -54,6 +46,27 @@ const comingSoonRoutes = workspaceNav
   .filter((item) => item.milestone)
   .map((item) => ({ path: item.to.slice(1), element: <ComingSoonPage item={item} /> }));
 
+
+function WorkspaceGate() {
+  const { status } = useAuth();
+  const location = useLocation();
+
+  if (status === "loading") return <FullPageSpinner />;
+
+  // Anonymous visitor at root "/" sees the public marketing landing page
+  if (status === "anonymous") {
+    if (location.pathname === "/") {
+      return <LandingPage />;
+    }
+    // Deep links to internal workspace routes redirect to login
+    const next = location.pathname + location.search;
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
+  }
+
+  // Authenticated users enter the workspace layout
+  return <AppLayout />;
+}
+
 export const router = createBrowserRouter([
   {
     errorElement: <RouteErrorPage />,
@@ -63,14 +76,11 @@ export const router = createBrowserRouter([
   { path: "/forgot-password", element: <GuestOnly><ForgotPasswordPage /></GuestOnly> },
   { path: "/reset-password", element: <ResetPasswordPage /> },
   { path: "/verify-email", element: <VerifyEmailPage /> },
+  { path: "/landing", element: <LandingPage /> },
   { path: "/invite/:token", element: <AcceptInvitePage /> },
   {
     path: "/",
-    element: (
-      <RequireAuth>
-        <AppLayout />
-      </RequireAuth>
-    ),
+    element: <WorkspaceGate />,
     children: [
       { index: true, element: <OverviewPage /> },
       ...comingSoonRoutes,
