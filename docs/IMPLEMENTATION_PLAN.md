@@ -1,0 +1,19 @@
+# Implementation plan
+
+Agreed scope (2026-11-02): **commercial product**; **build the application first, AI later**;
+**whatsapp-web.js** as the WhatsApp connector, replaceable by Meta's official API if it stops working.
+
+Each milestone ends with migrations applied, backend + frontend tests run (results reported honestly),
+builds passing and `DEVELOPMENT_STATUS.md` updated.
+
+| # | Milestone | Scope | Status |
+|---|---|---|---|
+| M0 | Setup | Monorepo, Docker Compose (Postgres+pgvector, Redis, MinIO, Mailpit), env config, docs | ✅ Done |
+| M1 | Foundation | Auth (register, login, refresh rotation, logout, verify email, reset password), organizations, invitations, RBAC (6 roles), RLS tenant isolation, audit log, design system, app shell, auth + admin screens | ✅ Done |
+| M2 | Channels & messaging | Node messaging gateway with whatsapp-web.js adapter (QR, states, encrypted sessions, reconnect, per-org limits), simulator channel, normalized events via Redis Streams with idempotency, consent/opt-out, sending limits, connection screens | Next |
+| M3 | Inbox & CRM | Real-time inbox (WebSocket/SSE), assignment, notes, tags, status/priority, attachments (MinIO), contacts + custom fields, lead pipeline, follow-up tasks | Planned |
+| M4 | Workflow engine | React Flow editor, validation/compilation, versions & publishing, Temporal execution, rule-based nodes (triggers, conditions, actions, data, logic, human), execution monitoring | Planned |
+| M5 | Schedules, templates, analytics | Timezone-aware schedules, template library, dashboard and analytics from real data, CSV export | Planned |
+| M6 | Commercial platform | Plans & usage limits, billing foundation, integrations framework (webhooks/REST), Super Admin console | Planned |
+| M7 | Hardening | OpenTelemetry/Prometheus/Grafana, load & security testing, backups, production config, deployment docs | Planned |
+| AI | AI track | Ollama + model router, RAG on pgvector, agents & tool registry — plugs in as new node types and screens | After M7 |
