@@ -10,6 +10,8 @@ import {
   Hand,
   ListTodo,
   MessageSquare,
+  PanelRight,
+  PanelRightClose,
   Paperclip,
   RotateCcw,
   Send,
@@ -29,7 +31,6 @@ import { LeadDialog } from "@/modules/crm/LeadDialog";
 import { TaskDialog } from "@/modules/crm/TaskDialog";
 import { errorMessage } from "@/services/api";
 import { inboxApi } from "@/services/inbox";
-import { useAuth } from "@/stores/auth";
 import { usePollInterval } from "@/stores/live";
 import { orgKeys, useCurrentOrg } from "@/stores/organization";
 import type { InboxConversation, InboxMessage, Priority } from "@/types/api";
@@ -48,7 +49,7 @@ function DeliveryIcon({ message }: { message: InboxMessage }) {
     delivered: { icon: CheckCheck, label: "Delivered" },
     read: { icon: CheckCheck, label: "Read", className: "text-emerald-300" },
     played: { icon: CheckCheck, label: "Played", className: "text-emerald-300" },
-    failed: { icon: AlertCircle, label: message.error ?? "Failed to deliver", className: "text-red-300" },
+    failed: { icon: AlertCircle, label: message.error ?? "Failed to deliver", className: "text-red-400" },
   };
   const meta = icons[message.status];
   if (!meta) return null;
@@ -79,18 +80,18 @@ function Bubble({ message }: { message: InboxMessage }) {
     <div className={cn("group flex w-full", outbound ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "relative max-w-[82%] sm:max-w-[70%] space-y-1.5 px-3.5 py-2.5 text-[13px] shadow-card transition-all",
+          "relative max-w-md sm:max-w-xl lg:max-w-2xl space-y-1.5 px-4 py-2.5 text-[13px] shadow-card transition-all",
           outbound
             ? "rounded-2xl rounded-tr-xs bg-primary text-white"
             : "rounded-2xl rounded-tl-xs border border-border bg-surface text-foreground",
-          isFailed && "ring-2 ring-danger/40 bg-danger/10 text-danger-foreground border-danger/30"
+          isFailed && "ring-2 ring-danger/40 bg-red-50 text-red-950 border-red-200"
         )}
       >
         {message.attachments.map((a) => (
           <Attachment key={a.id} attachment={a} />
         ))}
         {message.content ? (
-          <p className="whitespace-pre-wrap break-words leading-relaxed select-text">{message.content}</p>
+          <p className="whitespace-pre-wrap break-words leading-relaxed select-text font-normal">{message.content}</p>
         ) : (
           !message.attachments.length && (
             <p className={cn("italic", outbound ? "text-purple-200" : "text-muted")}>[{message.message_type} — not shown]</p>
@@ -99,7 +100,7 @@ function Bubble({ message }: { message: InboxMessage }) {
         <div
           className={cn(
             "flex items-center justify-end gap-1.5 text-[10px]",
-            outbound ? "text-purple-200" : "text-muted"
+            outbound && !isFailed ? "text-purple-200" : isFailed ? "text-red-600 font-semibold" : "text-muted"
           )}
         >
           {outbound && message.sent_by && <span className="font-medium">{message.sent_by.full_name} ·</span>}
@@ -172,11 +173,15 @@ function Composer({
     <form
       onSubmit={submit}
       className={cn(
-        "border-t bg-surface p-3 transition-colors",
+        "border-t bg-surface p-3.5 transition-colors",
         mode === "note" && "bg-amber-50/40 border-amber-200/60"
       )}
     >
-      {send.error && <div className="mb-2"><Alert tone="danger">{errorMessage(send.error)}</Alert></div>}
+      {send.error && (
+        <div className="mb-2">
+          <Alert tone="danger">{errorMessage(send.error)}</Alert>
+        </div>
+      )}
 
       {/* Mode toggle bar */}
       <div className="mb-2 flex items-center justify-between">
@@ -372,9 +377,11 @@ function NotesList({
 
 function DetailsPanel({
   conversation,
+  onClose,
   onAddNoteRef,
 }: {
   conversation: InboxConversation;
+  onClose: () => void;
   onAddNoteRef: (fn: (note: string) => Promise<void>) => void;
 }) {
   const org = useCurrentOrg();
@@ -391,11 +398,19 @@ function DetailsPanel({
   };
 
   return (
-    <aside className="hidden w-80 shrink-0 space-y-6 overflow-y-auto border-l bg-surface p-4 xl:block" aria-label="Conversation details">
+    <aside className="w-72 shrink-0 space-y-5 overflow-y-auto border-l bg-surface p-4 shadow-sm" aria-label="Conversation details">
+      {/* Header with close button */}
+      <div className="flex items-center justify-between border-b pb-3">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Customer details</span>
+        <Button variant="ghost" size="icon" className="size-6 text-muted" onClick={onClose} title="Hide details">
+          <PanelRightClose className="size-4" />
+        </Button>
+      </div>
+
       {/* Contact Profile Header */}
-      <section className="space-y-3">
+      <section className="space-y-2.5">
         <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
             {initials(name)}
           </div>
           <div className="min-w-0 flex-1">
@@ -438,16 +453,16 @@ function DetailsPanel({
 
       {/* Quick actions */}
       {(org.can("leads.manage") || org.can("contacts.manage")) && (
-        <section className="space-y-2 border-t pt-4">
+        <section className="space-y-2 border-t pt-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Quick actions</p>
           <div className="flex flex-col gap-1.5">
             {org.can("leads.manage") && (
-              <Button variant="secondary" size="sm" className="w-full justify-start gap-2" onClick={() => setLeadOpen(true)}>
+              <Button variant="secondary" size="sm" className="w-full justify-start gap-2 h-8 text-xs" onClick={() => setLeadOpen(true)}>
                 <Target className="size-3.5 text-primary" /> Create deal / lead
               </Button>
             )}
             {org.can("contacts.manage") && (
-              <Button variant="secondary" size="sm" className="w-full justify-start gap-2" onClick={() => setTaskOpen(true)}>
+              <Button variant="secondary" size="sm" className="w-full justify-start gap-2 h-8 text-xs" onClick={() => setTaskOpen(true)}>
                 <ListTodo className="size-3.5 text-warning" /> Add follow-up task
               </Button>
             )}
@@ -456,7 +471,7 @@ function DetailsPanel({
       )}
 
       {/* Internal notes */}
-      <section className="space-y-2 border-t pt-4">
+      <section className="space-y-2 border-t pt-3.5">
         <div className="flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Internal notes</p>
           <StickyNote className="size-3.5 text-subtle" />
@@ -474,9 +489,18 @@ function DetailsPanel({
   );
 }
 
-function Header({ conversation, onBack }: { conversation: InboxConversation; onBack: () => void }) {
+function Header({
+  conversation,
+  showDetails,
+  onToggleDetails,
+  onBack,
+}: {
+  conversation: InboxConversation;
+  showDetails: boolean;
+  onToggleDetails: () => void;
+  onBack: () => void;
+}) {
   const org = useCurrentOrg();
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const assignees = useQuery({
     queryKey: orgKeys.scoped(org.id, "inbox", "assignees"),
@@ -498,33 +522,34 @@ function Header({ conversation, onBack }: { conversation: InboxConversation; onB
   const resolved = conversation.status === "RESOLVED" || conversation.status === "ARCHIVED";
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b bg-surface px-4 py-2.5">
-      <div className="flex items-center gap-3 min-w-0">
-        <Button variant="ghost" size="icon" className="md:hidden" onClick={onBack} aria-label="Back to conversations">
+    <header className="flex items-center justify-between gap-3 border-b bg-surface px-4 py-2.5 min-w-0">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <Button variant="ghost" size="icon" className="md:hidden size-8" onClick={onBack} aria-label="Back to conversations">
           <ArrowLeft className="size-4" />
         </Button>
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
           {initials(contactName(conversation.contact))}
         </div>
         <div className="min-w-0">
-          <div className="flex items-center gap-2 truncate">
+          <div className="flex items-center gap-1.5 truncate">
             <span className="font-semibold text-foreground text-sm truncate">{contactName(conversation.contact)}</span>
-            <Badge tone={STATUS_LABELS[conversation.status].tone}>{STATUS_LABELS[conversation.status].label}</Badge>
+            <Badge tone={STATUS_LABELS[conversation.status].tone} className="text-[10px] px-1.5 py-0">{STATUS_LABELS[conversation.status].label}</Badge>
             {conversation.automation_paused && (
-              <Badge tone="warning" className="hidden sm:inline-flex">Human handling</Badge>
+              <Badge tone="warning" className="hidden sm:inline-flex text-[10px] px-1.5 py-0">Human</Badge>
             )}
           </div>
-          <p className="truncate text-xs text-muted">
+          <p className="truncate text-[11px] text-muted">
             via <span className="font-medium text-foreground">{conversation.connection_name}</span>
           </p>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {canAssign ? (
+      {/* Control Actions Row (Compact & Clean single-line layout) */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {canAssign && (
           <NativeSelect
             aria-label="Assignee"
-            className="h-8 w-36 text-xs"
+            className="h-7.5 w-32 text-xs"
             value={conversation.assignee?.id ?? ""}
             onChange={(e) => assign.mutate(e.target.value || null)}
           >
@@ -535,20 +560,13 @@ function Header({ conversation, onBack }: { conversation: InboxConversation; onB
               </option>
             ))}
           </NativeSelect>
-        ) : (
-          canReply &&
-          !conversation.assignee && (
-            <Button size="sm" variant="secondary" loading={assign.isPending} onClick={() => assign.mutate(user?.id ?? null)}>
-              Take conversation
-            </Button>
-          )
         )}
 
         {canReply && (
           <NativeSelect
             aria-label="Priority"
             title="Priority"
-            className="h-8 w-24 text-xs"
+            className="h-7.5 w-22 text-xs hidden sm:inline-block"
             value={conversation.priority}
             onChange={(e) => priority.mutate(e.target.value as Priority)}
           >
@@ -561,30 +579,44 @@ function Header({ conversation, onBack }: { conversation: InboxConversation; onB
         )}
 
         {canReply && (
-          <Tooltip content={conversation.automation_paused ? "Let automations reply again" : "Pause automations: a human handles this conversation"}>
+          <Tooltip content={conversation.automation_paused ? "Resume bot automations" : "Pause automations: take over as human agent"}>
             <Button
               size="sm"
               variant={conversation.automation_paused ? "primary" : "secondary"}
               onClick={() => takeover.mutate(!conversation.automation_paused)}
               aria-pressed={conversation.automation_paused}
-              className="gap-1.5"
+              className="h-7.5 text-xs gap-1"
             >
               <Hand className="size-3.5" />
-              <span className="hidden sm:inline">{conversation.automation_paused ? "Human active" : "Take over"}</span>
+              <span className="hidden sm:inline">{conversation.automation_paused ? "Handling" : "Take over"}</span>
             </Button>
           </Tooltip>
         )}
 
         {canReply &&
           (resolved ? (
-            <Button size="sm" variant="secondary" loading={status.isPending} onClick={() => status.mutate("OPEN")} className="gap-1.5">
-              <RotateCcw className="size-3.5" /> Reopen
+            <Button size="sm" variant="secondary" loading={status.isPending} onClick={() => status.mutate("OPEN")} className="h-7.5 text-xs gap-1">
+              <RotateCcw className="size-3.5" /> <span className="hidden sm:inline">Reopen</span>
             </Button>
           ) : (
-            <Button size="sm" variant="primary" loading={status.isPending} onClick={() => status.mutate("RESOLVED")} className="gap-1.5">
-              <CheckCircle2 className="size-3.5" /> Resolve
+            <Button size="sm" variant="primary" loading={status.isPending} onClick={() => status.mutate("RESOLVED")} className="h-7.5 text-xs gap-1">
+              <CheckCircle2 className="size-3.5" /> <span className="hidden sm:inline">Resolve</span>
             </Button>
           ))}
+
+        {/* Toggle Details Panel Button */}
+        <Tooltip content={showDetails ? "Hide customer panel" : "View customer details & notes"}>
+          <Button
+            size="sm"
+            variant={showDetails ? "secondary" : "ghost"}
+            onClick={onToggleDetails}
+            aria-label="Toggle details panel"
+            className="h-7.5 px-2 text-xs text-muted hover:text-foreground gap-1"
+          >
+            <PanelRight className="size-4" />
+            <span className="hidden md:inline">{showDetails ? "Hide info" : "Info"}</span>
+          </Button>
+        </Tooltip>
       </div>
     </header>
   );
@@ -595,6 +627,7 @@ export function ConversationView({ conversationId, onBack }: { conversationId: s
   const poll = usePollInterval(5000);
   const bottom = useRef<HTMLDivElement>(null);
   const addNoteRef = useRef<(body: string) => Promise<void>>(() => Promise.resolve());
+  const [showDetails, setShowDetails] = useState(false);
 
   const conversation = useQuery({
     queryKey: orgKeys.scoped(org.id, "conversation", conversationId),
@@ -632,12 +665,18 @@ export function ConversationView({ conversationId, onBack }: { conversationId: s
   const msgs = messages.data ?? [];
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      {/* Main Chat Canvas (Wide, spacious, beautiful) */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Header conversation={c} onBack={onBack} />
+        <Header
+          conversation={c}
+          showDetails={showDetails}
+          onToggleDetails={() => setShowDetails(!showDetails)}
+          onBack={onBack}
+        />
 
         {/* Message Thread Area */}
-        <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50/70 p-4" aria-live="polite">
+        <div className="flex-1 space-y-3.5 overflow-y-auto bg-slate-50/70 p-4 md:p-6" aria-live="polite">
           {messages.isLoading && <LoadingRows rows={3} />}
           {messages.error && <ErrorState message={errorMessage(messages.error)} onRetry={() => void messages.refetch()} />}
 
@@ -670,12 +709,16 @@ export function ConversationView({ conversationId, onBack }: { conversationId: s
         />
       </div>
 
-      <DetailsPanel
-        conversation={c}
-        onAddNoteRef={(fn) => {
-          addNoteRef.current = fn;
-        }}
-      />
+      {/* Customer Details Panel (Collapsible to prevent squishing the messages) */}
+      {showDetails && (
+        <DetailsPanel
+          conversation={c}
+          onClose={() => setShowDetails(false)}
+          onAddNoteRef={(fn) => {
+            addNoteRef.current = fn;
+          }}
+        />
+      )}
     </div>
   );
 }

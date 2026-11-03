@@ -84,3 +84,4 @@ export function WorkflowPerformanceCard({
     </div>
   );
 }
+

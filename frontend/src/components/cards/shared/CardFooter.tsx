@@ -21,3 +21,4 @@ export function CardFooter({ children, divider = true, className, ...props }: Ca
     </footer>
   );
 }
+

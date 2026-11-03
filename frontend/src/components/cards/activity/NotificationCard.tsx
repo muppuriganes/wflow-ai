@@ -70,3 +70,4 @@ export function NotificationCard({
     </div>
   );
 }
+

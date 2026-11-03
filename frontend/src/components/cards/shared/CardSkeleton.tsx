@@ -88,3 +88,4 @@ export function CardSkeleton({ variant = "card", className, ...props }: CardSkel
     </div>
   );
 }
+
