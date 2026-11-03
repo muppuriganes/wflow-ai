@@ -147,7 +147,12 @@ export function InboxPage() {
     );
   }
 
-  const select = (id: string) => navigate({ pathname: `/inbox/${id}`, search: params.toString() });
+  const select = (id: string) => {
+    if (window.innerWidth < 1440) {
+      setFoldersExpanded(false);
+    }
+    navigate({ pathname: `/inbox/${id}`, search: params.toString() });
+  };
   const items = list.data?.items ?? [];
 
   return (
@@ -290,18 +295,23 @@ export function InboxPage() {
 
       {/* Conversation List Pane (Slimmed to w-72 for maximum chat canvas) */}
       <section className={cn("flex w-full shrink-0 flex-col border-r bg-surface md:w-72 lg:w-72", conversationId && "hidden md:flex")} aria-label="Conversations">
-        {/* Top Search & Filter Bar */}
+                {/* Top Search & Filter Bar */}
         <div className="space-y-2 border-b p-2.5">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-subtle" aria-hidden />
-            <Input className="h-8 pl-8 text-xs" placeholder="Search name, phone or message…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search conversations" />
+            <Input className="h-8 pl-8 text-xs" placeholder="Search name, phone or message..." value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search conversations" />
           </div>
 
-          {/* Quick folder pills right inside conversation list */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar text-xs">
-            {VIEWS.slice(0, 4).map((v) => {
+          {/* Quick folder tabs (Clean 4-column grid with 0 horizontal overflow or cutoffs) */}
+          <div className="grid grid-cols-4 gap-0.5 rounded-lg bg-surface-muted/70 p-0.5 text-xs">
+            {[
+              { key: "active", label: "Open", countKey: "open" as const },
+              { key: "mine", label: "Mine", countKey: "mine" as const },
+              { key: "unassigned", label: "New", countKey: "unassigned" as const },
+              { key: "resolved", label: "Done", countKey: "resolved" as const },
+            ].map((v) => {
               const isSelected = view === v.key;
-              const countVal = v.count && counts.data ? counts.data[v.count] : undefined;
+              const countVal = counts.data ? counts.data[v.countKey] : undefined;
 
               return (
                 <button
@@ -309,15 +319,15 @@ export function InboxPage() {
                   type="button"
                   onClick={() => setParams(v.key === "mine" ? {} : { view: v.key })}
                   className={cn(
-                    "shrink-0 rounded-md px-2 py-1 text-[11px] font-medium transition-colors flex items-center gap-1",
+                    "flex items-center justify-center gap-1 rounded-md py-1 text-[11px] font-medium transition-all",
                     isSelected
-                      ? "bg-primary text-white font-semibold"
-                      : "bg-surface-muted/80 text-muted hover:text-foreground"
+                      ? "bg-surface text-foreground font-semibold shadow-xs"
+                      : "text-muted hover:text-foreground"
                   )}
                 >
-                  <span>{v.shortLabel}</span>
+                  <span>{v.label}</span>
                   {countVal !== undefined && countVal > 0 && (
-                    <span className={cn("text-[9px] font-bold px-1 rounded-full", isSelected ? "bg-white/20 text-white" : "text-muted")}>
+                    <span className={cn("text-[9px] font-bold px-1 rounded-full", isSelected ? "bg-primary text-white" : "bg-surface-muted text-muted")}>
                       {countVal}
                     </span>
                   )}

@@ -522,20 +522,27 @@ function Header({
   const resolved = conversation.status === "RESOLVED" || conversation.status === "ARCHIVED";
 
   return (
-    <header className="flex items-center justify-between gap-3 border-b bg-surface px-4 py-2.5 min-w-0">
-      <div className="flex items-center gap-2.5 min-w-0">
-        <Button variant="ghost" size="icon" className="md:hidden size-8" onClick={onBack} aria-label="Back to conversations">
+    <header className="flex h-14 items-center justify-between gap-3 border-b bg-surface px-3 sm:px-4 min-w-0">
+      {/* Contact Identity - Guaranteed space, never crushed or overlapped */}
+      <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
+        <Button variant="ghost" size="icon" className="md:hidden size-8 shrink-0" onClick={onBack} aria-label="Back to conversations">
           <ArrowLeft className="size-4" />
         </Button>
         <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
           {initials(contactName(conversation.contact))}
         </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5 truncate">
-            <span className="font-semibold text-foreground text-sm truncate">{contactName(conversation.contact)}</span>
-            <Badge tone={STATUS_LABELS[conversation.status].tone} className="text-[10px] px-1.5 py-0">{STATUS_LABELS[conversation.status].label}</Badge>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-foreground text-sm truncate" title={contactName(conversation.contact)}>
+              {contactName(conversation.contact)}
+            </span>
+            <Badge tone={STATUS_LABELS[conversation.status].tone} className="shrink-0 text-[10px] px-1.5 py-0">
+              {STATUS_LABELS[conversation.status].label}
+            </Badge>
             {conversation.automation_paused && (
-              <Badge tone="warning" className="hidden sm:inline-flex text-[10px] px-1.5 py-0">Human</Badge>
+              <Badge tone="warning" className="hidden xl:inline-flex shrink-0 text-[10px] px-1.5 py-0">
+                Human
+              </Badge>
             )}
           </div>
           <p className="truncate text-[11px] text-muted">
@@ -544,12 +551,13 @@ function Header({
         </div>
       </div>
 
-      {/* Control Actions Row (Compact & Clean single-line layout) */}
+      {/* Control Actions Row (Compact, responsive, never overflows) */}
       <div className="flex items-center gap-1.5 shrink-0">
         {canAssign && (
           <NativeSelect
             aria-label="Assignee"
-            className="h-7.5 w-32 text-xs"
+            title="Assignee"
+            className="h-8 w-24 sm:w-28 text-xs"
             value={conversation.assignee?.id ?? ""}
             onChange={(e) => assign.mutate(e.target.value || null)}
           >
@@ -566,7 +574,7 @@ function Header({
           <NativeSelect
             aria-label="Priority"
             title="Priority"
-            className="h-7.5 w-22 text-xs hidden sm:inline-block"
+            className="h-8 w-20 text-xs hidden 2xl:inline-block"
             value={conversation.priority}
             onChange={(e) => priority.mutate(e.target.value as Priority)}
           >
@@ -579,42 +587,41 @@ function Header({
         )}
 
         {canReply && (
-          <Tooltip content={conversation.automation_paused ? "Resume bot automations" : "Pause automations: take over as human agent"}>
+          <Tooltip content={conversation.automation_paused ? "Resume bot automations (currently human)" : "Pause automations: take over as human agent"}>
             <Button
               size="sm"
               variant={conversation.automation_paused ? "primary" : "secondary"}
               onClick={() => takeover.mutate(!conversation.automation_paused)}
               aria-pressed={conversation.automation_paused}
-              className="h-7.5 text-xs gap-1"
+              className="h-8 px-2 text-xs gap-1"
             >
               <Hand className="size-3.5" />
-              <span className="hidden sm:inline">{conversation.automation_paused ? "Handling" : "Take over"}</span>
+              <span className="hidden xl:inline">{conversation.automation_paused ? "Handling" : "Take over"}</span>
             </Button>
           </Tooltip>
         )}
 
         {canReply &&
           (resolved ? (
-            <Button size="sm" variant="secondary" loading={status.isPending} onClick={() => status.mutate("OPEN")} className="h-7.5 text-xs gap-1">
+            <Button size="sm" variant="secondary" loading={status.isPending} onClick={() => status.mutate("OPEN")} className="h-8 px-2.5 text-xs gap-1 font-medium">
               <RotateCcw className="size-3.5" /> <span className="hidden sm:inline">Reopen</span>
             </Button>
           ) : (
-            <Button size="sm" variant="primary" loading={status.isPending} onClick={() => status.mutate("RESOLVED")} className="h-7.5 text-xs gap-1">
+            <Button size="sm" variant="primary" loading={status.isPending} onClick={() => status.mutate("RESOLVED")} className="h-8 px-2.5 text-xs gap-1 font-medium">
               <CheckCircle2 className="size-3.5" /> <span className="hidden sm:inline">Resolve</span>
             </Button>
           ))}
 
         {/* Toggle Details Panel Button */}
-        <Tooltip content={showDetails ? "Hide customer panel" : "View customer details & notes"}>
+        <Tooltip content={showDetails ? "Hide customer details" : "View customer details & notes"}>
           <Button
-            size="sm"
+            size="icon"
             variant={showDetails ? "secondary" : "ghost"}
             onClick={onToggleDetails}
             aria-label="Toggle details panel"
-            className="h-7.5 px-2 text-xs text-muted hover:text-foreground gap-1"
+            className={cn("size-8 text-muted hover:text-foreground shrink-0", showDetails && "bg-primary-soft text-primary font-bold")}
           >
             <PanelRight className="size-4" />
-            <span className="hidden md:inline">{showDetails ? "Hide info" : "Info"}</span>
           </Button>
         </Tooltip>
       </div>
