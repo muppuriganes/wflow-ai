@@ -11,15 +11,17 @@ const TABS = [
 export function CrmTabs() {
   const org = useCurrentOrg();
   return (
-    <nav className="mb-5 flex gap-4 border-b" aria-label="CRM sections">
+    <nav className="mb-6 flex gap-1 border-b border-border" aria-label="CRM sections">
       {TABS.filter((t) => org.can(t.permission)).map((t) => (
         <NavLink
           key={t.to}
           to={t.to}
           className={({ isActive }) =>
             cn(
-              "-mb-px border-b-2 border-transparent pb-2 text-[13px] font-medium text-muted hover:text-foreground",
-              isActive && "border-primary text-foreground",
+              "-mb-px border-b-2 px-3 pb-2.5 text-xs font-semibold transition-colors",
+              isActive
+                ? "border-primary text-primary"
+                : "border-transparent text-muted hover:border-border hover:text-foreground",
             )
           }
         >

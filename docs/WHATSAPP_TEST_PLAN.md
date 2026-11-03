@@ -111,4 +111,3 @@ Configured limits (from the code):
 - **Gateway Host OS:** Windows 11
 - **Tester Signature:** _______________
 - **Status:** [ ] Ready for Staging / Production Launch
-

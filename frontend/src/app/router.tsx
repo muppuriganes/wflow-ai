@@ -105,6 +105,9 @@ export const router = createBrowserRouter([
     element: <WorkspaceGate />,
     children: [
       { index: true, element: <OverviewPage /> },
+      { path: "agents", lazy: page(() => import("@/modules/ai/AgentsPage"), "AgentsPage") },
+      { path: "ai-studio", lazy: page(() => import("@/modules/ai/AiStudioPage"), "AiStudioPage") },
+      { path: "knowledge", lazy: page(() => import("@/modules/ai/KnowledgeBasePage"), "KnowledgeBasePage") },
       ...comingSoonRoutes,
       { path: "inbox", lazy: page(() => import("@/modules/inbox/InboxPage"), "InboxPage") },
       { path: "inbox/:conversationId", lazy: page(() => import("@/modules/inbox/InboxPage"), "InboxPage") },

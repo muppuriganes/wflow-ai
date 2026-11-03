@@ -1,13 +1,24 @@
 import type { ReactNode } from "react";
+import { cn } from "@/utils/cn";
 
-export function PageHeader({ title, description, actions }: { title: string; description?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({
+  title,
+  description,
+  actions,
+  className,
+}: {
+  title: string;
+  description?: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <div className={cn("mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-4", className)}>
       <div className="min-w-0">
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-        {description && <p className="mt-0.5 text-[13px] text-muted">{description}</p>}
+        <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">{title}</h1>
+        {description && <p className="mt-1 text-xs text-muted leading-relaxed">{description}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex items-center gap-2.5 shrink-0">{actions}</div>}
     </div>
   );
 }
