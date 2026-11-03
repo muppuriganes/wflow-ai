@@ -124,3 +124,4 @@ When transitioning a production organization to Meta Cloud API:
 4. [ ] In WFlow AI, select channel type **Meta Cloud API** and input `PHONE_NUMBER_ID` and Token.
 5. [ ] Configure Meta Webhook URL to `https://<your-domain>/api/v1/channels/webhook/meta`.
 6. [ ] Send test message; verify delivery ticks and automated workflow execution.
+

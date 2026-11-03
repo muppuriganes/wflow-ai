@@ -38,7 +38,7 @@ npm run dev
 Verify gateway health:
 ```bash
 curl http://127.0.0.1:8200/health
-# Expected: {"status":"ok","uptime":...}
+# Expected: {"status":"ok","sessions":<number of running sessions>}
 ```
 
 ---
@@ -58,7 +58,7 @@ curl http://127.0.0.1:8200/health
 | **9. Outbound Media Send** | In `/inbox`, click the paperclip attachment icon ➔ Select an image or PDF (< 16 MB) ➔ Add caption ➔ Send. | Media arrives on the customer phone with caption intact. | [ ] |
 | **10. Opt-Out Governance (STOP)** | From customer phone, send: `STOP`. | Contact is marked `opted_out = true`. Inbox displays *"Contact has opted out from messaging"*. Message input is disabled. | [ ] |
 | **11. Opt-In Re-engagement (START)** | From customer phone, send: `START`. | Contact is updated to `opted_out = false`. Warning banner disappears and agent reply box is re-enabled. | [ ] |
-| **12. Automated Workflow Trigger** | Go to `/workflows` ➔ Create a workflow: **Trigger:** Inbound Message containing keyword `#test` ➔ **Action:** Send WhatsApp Reply *"Automated reply received!"* ➔ Publish. Send `#test` from customer phone. | Temporal workflow triggers within 1–2 seconds. Customer phone receives *"Automated reply received!"*. Execution details logged in `/executions`. | [ ] |
+| **12. Automated Workflow Trigger** | Go to `/workflows` ➔ Create a workflow: **Trigger:** WhatsApp message received with keyword `testing` ➔ **Action:** Send WhatsApp message *"Automated reply received!"* ➔ Publish. Send *"testing the bot"* from customer phone. (Keywords match whole words, case-insensitive; symbols such as `#` are ignored, so `#test` would never match.) | Temporal workflow triggers within 1–2 seconds. Customer phone receives *"Automated reply received!"*. Execution details logged in `/executions`. | [ ] |
 | **13. Gateway Restart & Session Restore** | With channel `CONNECTED`, stop gateway (`Ctrl+C` in gateway terminal) ➔ Wait 10 seconds ➔ Restart gateway (`npm run dev`). | Gateway calls `GET /internal/channels/restore`. It recovers the saved session from disk and automatically returns to `CONNECTED` without requiring a new QR scan. | [ ] |
 | **14. Phone Unlink / Disconnect** | On your phone: Go to **Linked Devices** ➔ Tap active device ➔ Tap **Log out**. | Gateway captures `disconnected` event with reason `LOGOUT`. Status transitions to `LOGGED_OUT`. Session directory on disk is completely wiped. | [ ] |
 | **15. Manual Reconnect** | On the Connection Detail page in UI, click **Reconnect**. | Gateway initializes a fresh session. A new QR code displays. Re-scanning reconnects the account. | [ ] |
@@ -68,15 +68,23 @@ curl http://127.0.0.1:8200/health
 
 ## 3. Gateway Resource & Operational Limits
 
-| Metric | Measured / Target | Safety Ceiling | Action If Exceeded |
-|---|---|---|---|
-| **RAM per Session** | ~200 MB – 350 MB | 450 MB | Chromium `--js-flags="--max-old-space-size=256"` |
-| **CPU per Session (Idle)** | < 1% CPU | 5% CPU | Page throttling on idle tabs |
-| **CPU during QR / Start** | 15% – 30% for 3–5 seconds | 60% | Stagger session restores (1s interval) |
-| **Max Sessions per Host** | Configured via `GATEWAY_MAX_SESSIONS` (Default: 5) | Host memory / 400 MB | Reject new connections with `503 Gateway Capacity Exceeded` |
-| **Message Sending Rate** | `CHANNEL_SEND_LIMIT_PER_MINUTE` (Default: 30) | 60 msgs/min | Client gets 429 rate limit error |
+**Not measured yet.** Fill this table in during the live test (Task Manager / `docker stats`), and keep the
+measured values here — do not copy estimates.
 
----
+| Metric | Measured (fill in) | How to measure |
+|---|---|---|
+| RAM per connected session | ______ MB | Chromium processes started by the gateway, idle, after 10 minutes |
+| CPU per session (idle) | ______ % | Same, averaged over 1 minute |
+| CPU / time while starting (QR) | ______ % for ______ s | From "Create Connection" to QR shown |
+| Time to restore after gateway restart | ______ s | Step 13 |
+
+Configured limits (from the code):
+
+| Limit | Default | Setting |
+|---|---|---|
+| WhatsApp sessions per gateway host | 10 | `GATEWAY_MAX_SESSIONS` (gateway) |
+| Connections per organization | 3 (or the plan's channel limit, whichever is lower) | `MAX_CONNECTIONS_PER_ORG` + plan `max_channels` |
+| Messages sent per connection per minute | 20 | `CHANNEL_SEND_LIMIT_PER_MINUTE` |
 
 ## 4. Known WhatsApp Web Edge Cases & Troubleshooting
 
@@ -90,13 +98,7 @@ curl http://127.0.0.1:8200/health
 
 ### C. WhatsApp Web Version Changes
 - **Cause:** WhatsApp updates its web client scripts, breaking internal selectors.
-- **Resolution:** `whatsapp-web.js` version is pinned in `package.json`. If WhatsApp pushes a breaking web update, check `https://github.com/wwebjs/whatsapp-web.js/releases` for patch updates or configure remote web version cache:
-  ```ts
-  webVersionCache: {
-    type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wwebjs/web-versions/main/html/2.3000.1018919647-alpha.html',
-  }
-  ```
+- **Resolution:** `whatsapp-web.js` version is pinned in `package.json`. If WhatsApp pushes a breaking web update, check `https://github.com/wwebjs/whatsapp-web.js/releases` for a patched release, upgrade the pinned version in a branch, run the gateway tests and this test plan, then deploy. Don't point the client at a hard-coded WhatsApp Web build from the internet without checking it first.
 
 ---
 
@@ -109,3 +111,4 @@ curl http://127.0.0.1:8200/health
 - **Gateway Host OS:** Windows 11
 - **Tester Signature:** _______________
 - **Status:** [ ] Ready for Staging / Production Launch
+
