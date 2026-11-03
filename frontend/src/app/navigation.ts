@@ -14,7 +14,6 @@ import {
   type LucideIcon,
   MessageCircle,
   Settings,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Users,
@@ -70,9 +69,6 @@ export const adminNav: NavItem[] = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
-export const platformAdminNav: NavItem[] = [
-  { to: "/admin", label: "Super Admin console", icon: ShieldAlert },
-];
 
 export const MILESTONE_LABELS: Record<string, string> = {
   M2: "Milestone 2 · Channels & messaging",

@@ -1,7 +1,7 @@
-import { Building2, Check, ChevronsUpDown, Clock, LogOut, Menu, Plus, RefreshCw, Settings, X, XCircle } from "lucide-react";
+import { Building2, Check, ChevronsUpDown, Clock, LogOut, Menu, Plus, RefreshCw, Settings, ShieldAlert, X, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useMatch, useNavigate } from "react-router";
-import { adminNav, type NavItem, platformAdminNav, workspaceNav } from "@/app/navigation";
+import { adminNav, type NavItem, workspaceNav } from "@/app/navigation";
 import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import {
@@ -135,6 +135,12 @@ function UserMenu() {
           <p className="truncate text-xs text-muted">{user.email}</p>
         </div>
         <DropdownMenuSeparator />
+        {user.is_superadmin && (
+          <DropdownMenuItem onSelect={() => navigate("/admin")}>
+            <ShieldAlert />
+            Super Admin console
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={() => navigate("/settings")}>
           <Settings />
           Account settings
@@ -207,10 +213,20 @@ function Shell() {
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4">
           <NavSection title="Workspace" items={workspaceNav} onNavigate={closeMobile} />
           <NavSection title="Administration" items={adminNav} onNavigate={closeMobile} />
-          {user?.is_superadmin && (
-            <NavSection title="Platform" items={platformAdminNav} onNavigate={closeMobile} />
-          )}
         </nav>
+        {user?.is_superadmin && (
+          // Pinned below the scrolling menu so it is always in view.
+          <div className="border-t p-3">
+            <Link
+              to="/admin"
+              onClick={closeMobile}
+              className="flex h-9 items-center gap-2.5 rounded-md bg-foreground px-2.5 text-[13px] font-medium text-white hover:bg-foreground/90"
+            >
+              <ShieldAlert className="size-4" aria-hidden />
+              Super Admin console
+            </Link>
+          </div>
+        )}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -221,6 +237,13 @@ function Shell() {
           <div className="hidden text-xs text-muted lg:block">{current.name}</div>
           <div className="flex items-center gap-3">
             <LiveIndicator />
+            {user?.is_superadmin && (
+              <Button variant="secondary" size="sm" asChild>
+                <Link to="/admin">
+                  <ShieldAlert /> Super Admin
+                </Link>
+              </Button>
+            )}
             <UserMenu />
           </div>
         </header>
