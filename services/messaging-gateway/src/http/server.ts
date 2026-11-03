@@ -6,6 +6,8 @@ import type { Logger } from "../logger.js";
 import { SessionError, type SessionManager } from "../sessions/manager.js";
 
 const uuid = z.uuid();
+const CHAT_ID_REGEX = /^[\w.-]+@((c|g)\.us|lid|s\.whatsapp\.net)$/;
+
 const idParams = z.object({ id: uuid });
 const startBody = z.object({
   organization_id: uuid,
@@ -15,7 +17,7 @@ const startBody = z.object({
 const orgBody = z.object({ organization_id: uuid });
 const sendBody = z.object({
   organization_id: uuid,
-  chat_id: z.string().regex(/^[\w.-]+@(c|g)\.us$/, "Invalid chat id"),
+  chat_id: z.string().regex(CHAT_ID_REGEX, "Invalid chat id"),
   text: z.string().min(1).max(4096),
   client_message_id: z.string().min(8).max(64),
 });
@@ -27,7 +29,7 @@ const inboundBody = z.object({
 });
 const mediaBody = z.object({
   organization_id: uuid,
-  chat_id: z.string().regex(/^[\w.-]+@(c|g)\.us$/, "Invalid chat id"),
+  chat_id: z.string().regex(CHAT_ID_REGEX, "Invalid chat id"),
   media_url: z.url(),
   file_name: z.string().min(1).max(255),
   content_type: z.string().min(3).max(100),
