@@ -46,11 +46,12 @@ export function AdminLayout() {
 
   const close = () => setMobileOpen(false);
   return (
-    <div className="flex h-full">
+    // Exactly the window's height: the sidebar stays put and only the content area scrolls.
+    <div className="flex h-dvh overflow-hidden bg-background">
       {mobileOpen && <div className="fixed inset-0 z-30 bg-foreground/20 lg:hidden" onClick={close} aria-hidden />}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-foreground text-white transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex h-dvh w-60 shrink-0 flex-col bg-foreground text-white transition-transform lg:static lg:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
         aria-label="Super Admin navigation"
@@ -65,7 +66,7 @@ export function AdminLayout() {
             <X className="size-4" />
           </button>
         </div>
-        <nav className="flex-1 space-y-0.5 px-3 py-3">
+        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
           {NAV.map((item) => (
             <NavLink
               key={item.to}
@@ -102,15 +103,15 @@ export function AdminLayout() {
           <p className="truncate px-2.5 pt-1 text-[11px] text-white/50">{user.email}</p>
         </div>
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex h-13 shrink-0 items-center gap-3 border-b bg-surface px-4 lg:hidden">
           <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
             <Menu />
           </Button>
           <span className="text-sm font-semibold">Super Admin</span>
         </header>
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
+        <main className="relative min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-7xl px-4 py-6 lg:px-8">
             <Outlet />
           </div>
         </main>

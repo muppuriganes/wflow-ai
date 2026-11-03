@@ -743,19 +743,26 @@ export type PlatformStats = {
   organizations_pending: number;
   organizations_suspended: number;
   organizations_new: number;
+  organizations_new_prev: number;
   organizations_active: number;
+  organizations_active_prev: number;
   users_total: number;
   users_new: number;
+  users_new_prev: number;
   channels_connected: number;
+  channels_total: number;
   messages_in: number;
   messages_out: number;
+  messages_prev: number;
   workflow_runs: number;
   workflow_runs_failed: number;
+  workflow_runs_prev: number;
   revenue_cents: number;
+  revenue_cents_prev: number;
   billing_on: number;
   billing_off: number;
   plans: { key: string; name: string; organizations: number }[];
-  daily: { day: string; messages: number; signups: number }[];
+  daily: { day: string; inbound: number; outbound: number; messages: number; runs: number; runs_failed: number; signups: number }[];
 };
 
 export type OrgRequestItem = {

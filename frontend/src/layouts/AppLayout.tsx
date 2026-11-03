@@ -268,7 +268,7 @@ function Shell() {
             <Outlet />
           </main>
         ) : (
-          <main className="flex-1 overflow-y-auto">
+          <main className="relative min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-6">
               <Outlet />
             </div>
