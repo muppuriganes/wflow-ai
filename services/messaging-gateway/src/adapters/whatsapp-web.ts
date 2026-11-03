@@ -138,7 +138,11 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
     const asDocument = !/^(image|video|audio)\//.test(media.mimetype);
     try {
       const sent = await this.client.sendMessage(chatId, payload, { caption: caption || undefined, sendMediaAsDocument: asDocument });
-      return sent.id._serialized;
+      const providerId =
+        sent?.id?._serialized ||
+        (typeof (sent as any)?.id === "string" ? (sent as any).id : undefined) ||
+        `sent_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      return providerId;
     } catch (err) {
       throw new AdapterError(`WhatsApp rejected the file: ${String(err).slice(0, 200)}`, "send_failed");
     }
@@ -148,7 +152,11 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
     if (!this.client || !this.connected) throw new AdapterError("Channel is not connected", "not_connected");
     try {
       const sent = await this.client.sendMessage(chatId, text);
-      return sent.id._serialized;
+      const providerId =
+        sent?.id?._serialized ||
+        (typeof (sent as any)?.id === "string" ? (sent as any).id : undefined) ||
+        `sent_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      return providerId;
     } catch (err) {
       throw new AdapterError(`WhatsApp rejected the message: ${String(err).slice(0, 200)}`, "send_failed");
     }
