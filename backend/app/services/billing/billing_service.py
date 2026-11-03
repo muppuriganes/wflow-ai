@@ -109,6 +109,8 @@ async def confirm_test_checkout(db: AsyncSession, ctx: OrgContext, session_id: s
     sub.plan_id, sub.plan, sub.status, sub.cancel_at_period_end = plan.id, plan, "active", False
     sub.billing_interval = interval
     sub.trial_end = None
+    # Marks the subscription as paid through checkout (a real provider sets its own id).
+    sub.provider_subscription_id = sub.provider_subscription_id or f"test_sub_{uuid.uuid4().hex[:16]}"
     sub.current_period_start = now
     sub.current_period_end = now + (
         timedelta(days=365) if sub.billing_interval == "yearly" else timedelta(days=30)

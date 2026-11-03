@@ -123,6 +123,10 @@ async def test_billing_switch(client: AsyncClient, make_client: Any) -> None:
     )
     assert paid.status_code == 200 and paid.json()["status"] == "active"
     assert (await cust_client.get(f"{base}/workflows", headers=cust.headers)).status_code == 200
+    # Saving "billing on" again must not block an organization that has already paid.
+    await client.post(f"/api/v1/admin/organizations/{cust.org_id}/billing", headers=admin.headers,
+                      json={"billing_required": True})  # fmt: skip
+    assert (await cust_client.get(f"{base}/workflows", headers=cust.headers)).status_code == 200
 
     # Billing off again: the plan is granted and customers can't check out themselves.
     off = await client.post(f"/api/v1/admin/organizations/{cust.org_id}/billing", headers=admin.headers,
