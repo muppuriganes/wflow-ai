@@ -361,3 +361,52 @@ async def test_simulator_only_for_simulator_connections(
         json={"phone": "abc", "name": "X", "text": "hi"},
     )
     assert bad.status_code == 422
+
+
+async def test_worker_survives_idle_periods_and_delivers(
+    client: AsyncClient, gateway: FakeGateway, monkeypatch: Any
+) -> None:
+    """The real worker loop: idle longer than redis-py's default 5 s socket timeout without read
+    errors, then pick up a message published to the stream."""
+    import asyncio
+    import json
+
+    from redis.asyncio import Redis
+
+    from app.core.config import get_settings
+    from app.workers import channel_events
+
+    acct = await register(client, "worker-loop@example.com")
+    conn = await connected(acct, gateway)
+    settings = get_settings()
+    monkeypatch.setattr(settings, "channel_event_stream", f"wflow:test-events:{uuid.uuid4().hex[:8]}")
+    errors: list[str] = []
+    real_error = channel_events.log.error
+    monkeypatch.setattr(
+        channel_events.log, "error", lambda msg, **kw: (errors.append(msg), real_error(msg, **kw))
+    )
+
+    stop = asyncio.Event()
+    worker = asyncio.create_task(channel_events.run(stop))
+    await asyncio.sleep(6.5)  # idle: the old 5 s socket timeout fired here
+    assert errors == [], errors
+
+    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    payload = {"event_id": str(uuid.uuid4()), "organization_id": acct.org_id, "connection_id": conn,
+               "occurred_at": datetime.now(UTC).isoformat(), "event_type": "message.received",
+               "payload": {"provider_message_id": f"false_{uuid.uuid4().hex}", "chat_id": "919811199999@c.us",
+                           "sender": "919811199999@c.us", "sender_name": "Loop", "sender_phone": "919811199999",
+                           "message_type": "text", "content": "via the real worker"}}  # fmt: skip
+    await redis.xadd(settings.channel_event_stream, {"event": json.dumps(payload)})
+    base = f"/api/v1/organizations/{acct.org_id}"
+    for _ in range(50):
+        items = (await client.get(f"{base}/conversations?view=all", headers=acct.headers)).json()["items"]
+        if items:
+            break
+        await asyncio.sleep(0.2)
+    stop.set()
+    await asyncio.wait_for(worker, timeout=15)
+    await redis.delete(settings.channel_event_stream)
+    await redis.aclose()
+    assert items and items[0]["last_message_preview"] == "via the real worker"
+    assert errors == [], errors

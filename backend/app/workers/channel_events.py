@@ -317,9 +317,15 @@ async def _notify(event: ChannelEvent) -> None:
         await publish(event.organization_id, "message.updated", connection_id=event.connection_id)
 
 
+BLOCK_MS = 5000
+
+
 async def run(stop: asyncio.Event | None = None) -> None:
     settings = get_settings()
-    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    # The socket must outlast the blocking read: with redis-py's default 5 s timeout an idle
+    # XREADGROUP (block 5 s) timed out every cycle, and an entry delivered at that moment was lost
+    # to this consumer until a restart.
+    redis = Redis.from_url(settings.redis_url, decode_responses=True, socket_timeout=BLOCK_MS / 1000 + 10)
     stream = settings.channel_event_stream
     consumer = f"{socket.gethostname()}-{os.getpid()}"
     try:
@@ -333,9 +339,11 @@ async def run(stop: asyncio.Event | None = None) -> None:
     cursor = "0"
     while stop is None or not stop.is_set():
         try:
-            batches = await redis.xreadgroup(GROUP, consumer, {stream: cursor}, count=50, block=5000)
+            batches = await redis.xreadgroup(GROUP, consumer, {stream: cursor}, count=50, block=BLOCK_MS)
         except RedisError as exc:
             log.error("stream_read_failed", error=str(exc))
+            # A failed read may still have delivered entries to us: re-drain our pending list.
+            cursor = "0"
             await asyncio.sleep(2)
             continue
         entries = batches[0][1] if batches else []
