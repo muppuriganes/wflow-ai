@@ -91,7 +91,8 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
       }
       void client.destroy().catch(() => undefined);
     });
-    client.on("message", (msg: WAMessage) => {
+    const handleInbound = (msg: WAMessage) => {
+      this.log.info({ from: msg.from, fromMe: msg.fromMe, type: msg.type, body: msg.body }, "raw_whatsapp_message");
       if (!isCustomerMessage(msg)) return;
       void (async () => {
         let contact: { name?: string; phone?: string } | undefined;
@@ -103,7 +104,10 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
         }
         this.hooks.onMessage(normalizeMessage(msg, contact), await this.download(msg));
       })();
-    });
+    };
+
+    client.on("message", handleInbound);
+    client.on("message_create", handleInbound);
     client.on("message_ack", (msg: RawMessage, ack: number) => {
       const status = mapAck(ack);
       if (msg.fromMe && status) this.hooks.onAck(msg.id._serialized, status);
