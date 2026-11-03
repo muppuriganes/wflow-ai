@@ -86,6 +86,7 @@ export const router = createBrowserRouter([
   { path: "/reset-password", element: <ResetPasswordPage /> },
   { path: "/verify-email", element: <VerifyEmailPage /> },
   { path: "/landing", element: <LandingPage /> },
+  { path: "/dev/component-showcase", lazy: page(() => import("@/modules/dev/ComponentShowcasePage"), "ComponentShowcasePage") },
   { path: "/invite/:token", element: <AcceptInvitePage /> },
   {
     // The Super Admin console: a separate area with its own layout and navigation.
