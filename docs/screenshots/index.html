@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WFlow AI — Complete Application Screen Directory</title>
+  <style>
+    :root {
+      --primary: #7c3aed;
+      --primary-light: #f5f3ff;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 80px; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 24px 36px; position: sticky; top: 0; z-index: 50; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+    .header-content { max-width: 1600px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    .logo-area { display: flex; align-items: center; gap: 12px; }
+    .logo-badge { background: var(--primary); color: white; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; }
+    h1 { font-size: 20px; font-weight: 700; }
+    .subtitle { font-size: 13px; color: var(--text-muted); }
+    .stats-badge { background: var(--primary-light); color: var(--primary); font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 20px; border: 1px solid #ddd6fe; }
+    
+    .nav-bar { max-width: 1600px; margin: 20px auto 0; padding: 0 36px; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; }
+    .nav-pill { background: var(--surface); border: 1px solid var(--border); padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; text-decoration: none; color: var(--text-muted); transition: all 0.15s; white-space: nowrap; }
+    .nav-pill:hover, .nav-pill.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    main { max-width: 1600px; margin: 32px auto; padding: 0 36px; }
+    .section-title { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 40px 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+    
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 24px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: transform 0.15s, box-shadow 0.15s; display: flex; flex-direction: column; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
+    
+    .img-wrapper { position: relative; background: #e2e8f0; aspect-ratio: 16/10; overflow: hidden; cursor: pointer; border-bottom: 1px solid var(--border); }
+    .img-wrapper img { width: 100%; height: 100%; object-fit: cover; object-position: top; transition: transform 0.2s; }
+    .img-wrapper:hover img { transform: scale(1.02); }
+    
+    .card-body { padding: 16px 20px; display: flex; flex-direction: column; flex: 1; }
+    .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .screen-number { font-size: 11px; font-weight: 700; color: var(--primary); background: var(--primary-light); padding: 2px 8px; border-radius: 6px; }
+    .route-badge { font-family: monospace; font-size: 11px; background: #f1f5f9; padding: 3px 8px; border-radius: 6px; color: #475569; }
+    .card-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; flex: 1; }
+    
+    .card-footer { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 12px; margin-top: auto; }
+    .action-link { font-size: 12px; font-weight: 600; color: var(--primary); text-decoration: none; }
+    .action-link:hover { text-decoration: underline; }
+
+    /* Lightbox Modal */
+    .lightbox { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); z-index: 100; align-items: center; justify-content: center; padding: 30px; backdrop-filter: blur(4px); }
+    .lightbox.active { display: flex; }
+    .lightbox-content { max-width: 90vw; max-height: 90vh; background: white; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+    .lightbox-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .lightbox-img-wrap { overflow: auto; max-height: calc(90vh - 70px); }
+    .lightbox-img-wrap img { width: 100%; display: block; }
+    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-content">
+      <div class="logo-area">
+        <div class="logo-badge">W</div>
+        <div>
+          <h1>WFlow AI — Application Screens Directory</h1>
+          <p class="subtitle">Complete visual audit of all 35 application screens for UI/UX modernization (Logged in as Ganesh)</p>
+        </div>
+      </div>
+      <div class="stats-badge">Total Screens: 35 Captured</div>
+    </div>
+  </header>
+
+  <div class="nav-bar">
+    <a href="#cat-super-admin-console" class="nav-pill">Super Admin Console</a>
+<a href="#cat-workspace-core" class="nav-pill">Workspace Core</a>
+<a href="#cat-ai-&-knowledge" class="nav-pill">AI & Knowledge</a>
+<a href="#cat-crm-&-pipeline" class="nav-pill">CRM & Pipeline</a>
+<a href="#cat-integrations-&-telemetry" class="nav-pill">Integrations & Telemetry</a>
+<a href="#cat-settings-&-billing" class="nav-pill">Settings & Billing</a>
+<a href="#cat-public-&-auth" class="nav-pill">Public & Auth</a>
+<a href="#cat-design-system" class="nav-pill">Design System</a>
+  </div>
+
+  <main>
+    
+        <div id="cat-super-admin-console">
+          <div class="section-title">
+            <span>Super Admin Console</span>
+            <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">(5 screens)</span>
+          </div>
+          <div class="grid">
+            
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('01_admin_01_dashboard.png', 'Platform Dashboard', '/admin')">
+                  <img src="01_admin_01_dashboard.png" alt="Platform Dashboard" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 1</span>
+                    <span class="route-badge">/admin</span>
+                  </div>
+                  <h3 class="card-title">Platform Dashboard</h3>
+                  <p class="card-desc">Global platform metrics, tenant counts, active workers and system telemetry.</p>
+                  <div class="card-footer">
+                    <a href="01_admin_01_dashboard.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('01_admin_01_dashboard.png', 'Platform Dashboard', '/admin')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('02_admin_02_requests.png', 'Enterprise Access Requests', '/admin/requests')">
+                  <img src="02_admin_02_requests.png" alt="Enterprise Access Requests" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 2</span>
+                    <span class="route-badge">/admin/requests</span>
+                  </div>
+                  <h3 class="card-title">Enterprise Access Requests</h3>
+                  <p class="card-desc">Enterprise onboarding requests, status management and approval flows.</p>
+                  <div class="card-footer">
+                    <a href="02_admin_02_requests.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('02_admin_02_requests.png', 'Enterprise Access Requests', '/admin/requests')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('03_admin_03_organizations.png', 'Organizations Directory', '/admin/organizations')">
+                  <img src="03_admin_03_organizations.png" alt="Organizations Directory" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 3</span>
+                    <span class="route-badge">/admin/organizations</span>
+                  </div>
+                  <h3 class="card-title">Organizations Directory</h3>
+                  <p class="card-desc">Complete list of all tenant organizations, plans, and statuses.</p>
+                  <div class="card-footer">
+                    <a href="03_admin_03_organizations.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('03_admin_03_organizations.png', 'Organizations Directory', '/admin/organizations')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('04_admin_04_organization_detail.png', 'Organization Detail View', '/admin/organizations/e07dedeb-d318-47ac-988e-e8fe80883b99')">
+                  <img src="04_admin_04_organization_detail.png" alt="Organization Detail View" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 4</span>
+                    <span class="route-badge">/admin/organizations/e07dedeb-d318-47ac-988e-e8fe80883b99</span>
+                  </div>
+                  <h3 class="card-title">Organization Detail View</h3>
+                  <p class="card-desc">Deep-dive into tenant limits, members, usage counters and plans.</p>
+                  <div class="card-footer">
+                    <a href="04_admin_04_organization_detail.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('04_admin_04_organization_detail.png', 'Organization Detail View', '/admin/organizations/e07dedeb-d318-47ac-988e-e8fe80883b99')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('05_admin_05_users.png', 'Platform Users Directory', '/admin/users')">
+                  <img src="05_admin_05_users.png" alt="Platform Users Directory" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 5</span>
+                    <span class="route-badge">/admin/users</span>
+                  </div>
+                  <h3 class="card-title">Platform Users Directory</h3>
+                  <p class="card-desc">System-wide user accounts, roles and Super Admin privileges.</p>
+                  <div class="card-footer">
+                    <a href="05_admin_05_users.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('05_admin_05_users.png', 'Platform Users Directory', '/admin/users')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+          </div>
+        </div>
+      
+
+        <div id="cat-workspace-core">
+          <div class="section-title">
+            <span>Workspace Core</span>
+            <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">(11 screens)</span>
+          </div>
+          <div class="grid">
+            
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('06_workspace_01_overview.png', 'Workspace Overview', '/')">
+                  <img src="06_workspace_01_overview.png" alt="Workspace Overview" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 6</span>
+                    <span class="route-badge">/</span>
+                  </div>
+                  <h3 class="card-title">Workspace Overview</h3>
+                  <p class="card-desc">Editorial KPI dashboard, onboarding steps, activity feed and access status.</p>
+                  <div class="card-footer">
+                    <a href="06_workspace_01_overview.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('06_workspace_01_overview.png', 'Workspace Overview', '/')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('07_workspace_02_inbox.png', 'Unified Team Inbox', '/inbox')">
+                  <img src="07_workspace_02_inbox.png" alt="Unified Team Inbox" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 7</span>
+                    <span class="route-badge">/inbox</span>
+                  </div>
+                  <h3 class="card-title">Unified Team Inbox</h3>
+                  <p class="card-desc">Conversation list with 4-column filter tabs, search and folder rail.</p>
+                  <div class="card-footer">
+                    <a href="07_workspace_02_inbox.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('07_workspace_02_inbox.png', 'Unified Team Inbox', '/inbox')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('08_workspace_03_inbox_thread.png', 'Active Chat Conversation', '/inbox/fe6a3298-a8e7-4d87-a811-30fe25d2dec2')">
+                  <img src="08_workspace_03_inbox_thread.png" alt="Active Chat Conversation" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 8</span>
+                    <span class="route-badge">/inbox/fe6a3298-a8e7-4d87-a811-30fe25d2dec2</span>
+                  </div>
+                  <h3 class="card-title">Active Chat Conversation</h3>
+                  <p class="card-desc">Two-line header layout, WhatsApp message bubbles, composer and customer rail.</p>
+                  <div class="card-footer">
+                    <a href="08_workspace_03_inbox_thread.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('08_workspace_03_inbox_thread.png', 'Active Chat Conversation', '/inbox/fe6a3298-a8e7-4d87-a811-30fe25d2dec2')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('09_workspace_04_channels.png', 'Channels & Connectors', '/channels')">
+                  <img src="09_workspace_04_channels.png" alt="Channels & Connectors" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 9</span>
+                    <span class="route-badge">/channels</span>
+                  </div>
+                  <h3 class="card-title">Channels & Connectors</h3>
+                  <p class="card-desc">Connected WhatsApp Web and Meta Cloud API messaging channels.</p>
+                  <div class="card-footer">
+                    <a href="09_workspace_04_channels.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('09_workspace_04_channels.png', 'Channels & Connectors', '/channels')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('10_workspace_05_channel_detail.png', 'WhatsApp Connection Detail', '/channels/fb3eb4cb-5b0b-4714-b4c2-af6b29d67e5a')">
+                  <img src="10_workspace_05_channel_detail.png" alt="WhatsApp Connection Detail" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 10</span>
+                    <span class="route-badge">/channels/fb3eb4cb-5b0b-4714-b4c2-af6b29d67e5a</span>
+                  </div>
+                  <h3 class="card-title">WhatsApp Connection Detail</h3>
+                  <p class="card-desc">Live WhatsApp session status, QR authentication code, and device stats.</p>
+                  <div class="card-footer">
+                    <a href="10_workspace_05_channel_detail.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('10_workspace_05_channel_detail.png', 'WhatsApp Connection Detail', '/channels/fb3eb4cb-5b0b-4714-b4c2-af6b29d67e5a')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('11_workspace_06_workflows.png', 'Workflows Directory', '/workflows')">
+                  <img src="11_workspace_06_workflows.png" alt="Workflows Directory" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 11</span>
+                    <span class="route-badge">/workflows</span>
+                  </div>
+                  <h3 class="card-title">Workflows Directory</h3>
+                  <p class="card-desc">Automations listing with execution stats, triggers and publish states.</p>
+                  <div class="card-footer">
+                    <a href="11_workspace_06_workflows.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('11_workspace_06_workflows.png', 'Workflows Directory', '/workflows')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('12_workspace_07_workflow_builder.png', 'Visual Workflow Builder', '/workflows/1a2d095e-3e43-48f8-97e3-6dcc0dabfffb')">
+                  <img src="12_workspace_07_workflow_builder.png" alt="Visual Workflow Builder" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 12</span>
+                    <span class="route-badge">/workflows/1a2d095e-3e43-48f8-97e3-6dcc0dabfffb</span>
+                  </div>
+                  <h3 class="card-title">Visual Workflow Builder</h3>
+                  <p class="card-desc">Node-based interactive canvas with triggers, actions and side inspector.</p>
+                  <div class="card-footer">
+                    <a href="12_workspace_07_workflow_builder.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('12_workspace_07_workflow_builder.png', 'Visual Workflow Builder', '/workflows/1a2d095e-3e43-48f8-97e3-6dcc0dabfffb')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('13_workspace_08_executions.png', 'Execution Logs & Traces', '/executions')">
+                  <img src="13_workspace_08_executions.png" alt="Execution Logs & Traces" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 13</span>
+                    <span class="route-badge">/executions</span>
+                  </div>
+                  <h3 class="card-title">Execution Logs & Traces</h3>
+                  <p class="card-desc">Historical execution runs, run status, duration and trigger sources.</p>
+                  <div class="card-footer">
+                    <a href="13_workspace_08_executions.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('13_workspace_08_executions.png', 'Execution Logs & Traces', '/executions')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('14_workspace_09_execution_detail.png', 'Execution Run Detail', '/executions/3be681f5-ef88-4ed1-b310-396945783456')">
+                  <img src="14_workspace_09_execution_detail.png" alt="Execution Run Detail" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 14</span>
+                    <span class="route-badge">/executions/3be681f5-ef88-4ed1-b310-396945783456</span>
+                  </div>
+                  <h3 class="card-title">Execution Run Detail</h3>
+                  <p class="card-desc">Step-by-step trace timeline, input/output payload inspection and errors.</p>
+                  <div class="card-footer">
+                    <a href="14_workspace_09_execution_detail.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('14_workspace_09_execution_detail.png', 'Execution Run Detail', '/executions/3be681f5-ef88-4ed1-b310-396945783456')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('15_workspace_10_schedules.png', 'Scheduled Automations', '/schedules')">
+                  <img src="15_workspace_10_schedules.png" alt="Scheduled Automations" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 15</span>
+                    <span class="route-badge">/schedules</span>
+                  </div>
+                  <h3 class="card-title">Scheduled Automations</h3>
+                  <p class="card-desc">Temporal-backed cron triggers and recurrent workflow schedules.</p>
+                  <div class="card-footer">
+                    <a href="15_workspace_10_schedules.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('15_workspace_10_schedules.png', 'Scheduled Automations', '/schedules')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('16_workspace_11_templates.png', 'Template Library', '/templates')">
+                  <img src="16_workspace_11_templates.png" alt="Template Library" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 16</span>
+                    <span class="route-badge">/templates</span>
+                  </div>
+                  <h3 class="card-title">Template Library</h3>
+                  <p class="card-desc">Pre-built automation recipes for lead capture, support, and sales.</p>
+                  <div class="card-footer">
+                    <a href="16_workspace_11_templates.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('16_workspace_11_templates.png', 'Template Library', '/templates')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+          </div>
+        </div>
+      
+
+        <div id="cat-ai-&-knowledge">
+          <div class="section-title">
+            <span>AI & Knowledge</span>
+            <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">(3 screens)</span>
+          </div>
+          <div class="grid">
+            
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('17_workspace_12_agents.png', 'Autonomous AI Agents', '/agents')">
+                  <img src="17_workspace_12_agents.png" alt="Autonomous AI Agents" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 17</span>
+                    <span class="route-badge">/agents</span>
+                  </div>
+                  <h3 class="card-title">Autonomous AI Agents</h3>
+                  <p class="card-desc">AI Agent personas, system instructions and model configurations.</p>
+                  <div class="card-footer">
+                    <a href="17_workspace_12_agents.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('17_workspace_12_agents.png', 'Autonomous AI Agents', '/agents')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('18_workspace_13_ai_studio.png', 'AI Studio Playground', '/ai-studio')">
+                  <img src="18_workspace_13_ai_studio.png" alt="AI Studio Playground" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 18</span>
+                    <span class="route-badge">/ai-studio</span>
+                  </div>
+                  <h3 class="card-title">AI Studio Playground</h3>
+                  <p class="card-desc">Prompt testing, model sandbox and temperature evaluation workbench.</p>
+                  <div class="card-footer">
+                    <a href="18_workspace_13_ai_studio.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('18_workspace_13_ai_studio.png', 'AI Studio Playground', '/ai-studio')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('19_workspace_14_knowledge.png', 'Knowledge Base & RAG', '/knowledge')">
+                  <img src="19_workspace_14_knowledge.png" alt="Knowledge Base & RAG" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 19</span>
+                    <span class="route-badge">/knowledge</span>
+                  </div>
+                  <h3 class="card-title">Knowledge Base & RAG</h3>
+                  <p class="card-desc">Document indexing, vector embeddings and source knowledge management.</p>
+                  <div class="card-footer">
+                    <a href="19_workspace_14_knowledge.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('19_workspace_14_knowledge.png', 'Knowledge Base & RAG', '/knowledge')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+          </div>
+        </div>
+      
+
+        <div id="cat-crm-&-pipeline">
+          <div class="section-title">
+            <span>CRM & Pipeline</span>
+            <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">(4 screens)</span>
+          </div>
+          <div class="grid">
+            
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('20_workspace_15_contacts.png', 'Contacts Directory', '/contacts')">
+                  <img src="20_workspace_15_contacts.png" alt="Contacts Directory" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 20</span>
+                    <span class="route-badge">/contacts</span>
+                  </div>
+                  <h3 class="card-title">Contacts Directory</h3>
+                  <p class="card-desc">Customer database with phone numbers, tags, and lifecycle states.</p>
+                  <div class="card-footer">
+                    <a href="20_workspace_15_contacts.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('20_workspace_15_contacts.png', 'Contacts Directory', '/contacts')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('21_workspace_16_contact_detail.png', 'Customer 360 Profile', '/contacts/83d7b21b-5e0c-432f-b2a2-cb228cba0a9c')">
+                  <img src="21_workspace_16_contact_detail.png" alt="Customer 360 Profile" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 21</span>
+                    <span class="route-badge">/contacts/83d7b21b-5e0c-432f-b2a2-cb228cba0a9c</span>
+                  </div>
+                  <h3 class="card-title">Customer 360 Profile</h3>
+                  <p class="card-desc">Contact details, activity timeline, internal notes and linked deals.</p>
+                  <div class="card-footer">
+                    <a href="21_workspace_16_contact_detail.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('21_workspace_16_contact_detail.png', 'Customer 360 Profile', '/contacts/83d7b21b-5e0c-432f-b2a2-cb228cba0a9c')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('22_workspace_17_leads.png', 'Leads Pipeline', '/leads')">
+                  <img src="22_workspace_17_leads.png" alt="Leads Pipeline" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 22</span>
+                    <span class="route-badge">/leads</span>
+                  </div>
+                  <h3 class="card-title">Leads Pipeline</h3>
+                  <p class="card-desc">Lead tracking pipeline, deal sizes, confidence scores and stages.</p>
+                  <div class="card-footer">
+                    <a href="22_workspace_17_leads.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('22_workspace_17_leads.png', 'Leads Pipeline', '/leads')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('23_workspace_18_tasks.png', 'Follow-up Tasks', '/tasks')">
+                  <img src="23_workspace_18_tasks.png" alt="Follow-up Tasks" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 23</span>
+                    <span class="route-badge">/tasks</span>
+                  </div>
+                  <h3 class="card-title">Follow-up Tasks</h3>
+                  <p class="card-desc">Team task list with due dates, priorities, and assigned members.</p>
+                  <div class="card-footer">
+                    <a href="23_workspace_18_tasks.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('23_workspace_18_tasks.png', 'Follow-up Tasks', '/tasks')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+          </div>
+        </div>
+      
+
+        <div id="cat-integrations-&-telemetry">
+          <div class="section-title">
+            <span>Integrations & Telemetry</span>
+            <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">(2 screens)</span>
+          </div>
+          <div class="grid">
+            
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('24_workspace_19_integrations.png', 'Connected Apps & Webhooks', '/integrations')">
+                  <img src="24_workspace_19_integrations.png" alt="Connected Apps & Webhooks" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 24</span>
+                    <span class="route-badge">/integrations</span>
+                  </div>
+                  <h3 class="card-title">Connected Apps & Webhooks</h3>
+                  <p class="card-desc">Third-party integrations, webhook endpoints and secret keys.</p>
+                  <div class="card-footer">
+                    <a href="24_workspace_19_integrations.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('24_workspace_19_integrations.png', 'Connected Apps & Webhooks', '/integrations')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('25_workspace_20_analytics.png', 'Telemetry & Analytics', '/analytics')">
+                  <img src="25_workspace_20_analytics.png" alt="Telemetry & Analytics" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 25</span>
+                    <span class="route-badge">/analytics</span>
+                  </div>
+                  <h3 class="card-title">Telemetry & Analytics</h3>
+                  <p class="card-desc">Message delivery rates, response times, token usage and team workload.</p>
+                  <div class="card-footer">
+                    <a href="25_workspace_20_analytics.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('25_workspace_20_analytics.png', 'Telemetry & Analytics', '/analytics')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+          </div>
+        </div>
+      
+
+        <div id="cat-settings-&-billing">
+          <div class="section-title">
+            <span>Settings & Billing</span>
+            <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">(5 screens)</span>
+          </div>
+          <div class="grid">
+            
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('26_workspace_21_organization.png', 'Organization Settings', '/organization')">
+                  <img src="26_workspace_21_organization.png" alt="Organization Settings" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 26</span>
+                    <span class="route-badge">/organization</span>
+                  </div>
+                  <h3 class="card-title">Organization Settings</h3>
+                  <p class="card-desc">Company legal profile, logo, timezone and default configurations.</p>
+                  <div class="card-footer">
+                    <a href="26_workspace_21_organization.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('26_workspace_21_organization.png', 'Organization Settings', '/organization')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('27_workspace_22_team.png', 'Team & RBAC Roles', '/team')">
+                  <img src="27_workspace_22_team.png" alt="Team & RBAC Roles" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 27</span>
+                    <span class="route-badge">/team</span>
+                  </div>
+                  <h3 class="card-title">Team & RBAC Roles</h3>
+                  <p class="card-desc">Team member invitations, role assignments and fine-grained permissions.</p>
+                  <div class="card-footer">
+                    <a href="27_workspace_22_team.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('27_workspace_22_team.png', 'Team & RBAC Roles', '/team')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('28_workspace_23_security.png', 'Security & Audit Logs', '/security')">
+                  <img src="28_workspace_23_security.png" alt="Security & Audit Logs" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 28</span>
+                    <span class="route-badge">/security</span>
+                  </div>
+                  <h3 class="card-title">Security & Audit Logs</h3>
+                  <p class="card-desc">SOC2-ready audit trail, user sessions, MFA and IP controls.</p>
+                  <div class="card-footer">
+                    <a href="28_workspace_23_security.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('28_workspace_23_security.png', 'Security & Audit Logs', '/security')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('29_workspace_24_billing.png', 'Plans & GST Billing', '/billing')">
+                  <img src="29_workspace_24_billing.png" alt="Plans & GST Billing" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 29</span>
+                    <span class="route-badge">/billing</span>
+                  </div>
+                  <h3 class="card-title">Plans & GST Billing</h3>
+                  <p class="card-desc">Subscription tier, Razorpay gateway status, invoices and usage meters.</p>
+                  <div class="card-footer">
+                    <a href="29_workspace_24_billing.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('29_workspace_24_billing.png', 'Plans & GST Billing', '/billing')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('30_workspace_25_settings.png', 'User Preferences', '/settings')">
+                  <img src="30_workspace_25_settings.png" alt="User Preferences" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 30</span>
+                    <span class="route-badge">/settings</span>
+                  </div>
+                  <h3 class="card-title">User Preferences</h3>
+                  <p class="card-desc">Personal notifications, theme selection and security preferences.</p>
+                  <div class="card-footer">
+                    <a href="30_workspace_25_settings.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('30_workspace_25_settings.png', 'User Preferences', '/settings')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+          </div>
+        </div>
+      
+
+        <div id="cat-public-&-auth">
+          <div class="section-title">
+            <span>Public & Auth</span>
+            <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">(4 screens)</span>
+          </div>
+          <div class="grid">
+            
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('31_auth_01_landing.png', 'Marketing Landing Page', '/landing')">
+                  <img src="31_auth_01_landing.png" alt="Marketing Landing Page" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 31</span>
+                    <span class="route-badge">/landing</span>
+                  </div>
+                  <h3 class="card-title">Marketing Landing Page</h3>
+                  <p class="card-desc">Public homepage showcasing features, interactive preview and pricing.</p>
+                  <div class="card-footer">
+                    <a href="31_auth_01_landing.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('31_auth_01_landing.png', 'Marketing Landing Page', '/landing')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('32_auth_02_login.png', 'Sign In Screen', '/login')">
+                  <img src="32_auth_02_login.png" alt="Sign In Screen" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 32</span>
+                    <span class="route-badge">/login</span>
+                  </div>
+                  <h3 class="card-title">Sign In Screen</h3>
+                  <p class="card-desc">Clean login form with email/password and single sign-on triggers.</p>
+                  <div class="card-footer">
+                    <a href="32_auth_02_login.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('32_auth_02_login.png', 'Sign In Screen', '/login')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('33_auth_03_register.png', 'Sign Up Screen', '/register')">
+                  <img src="33_auth_03_register.png" alt="Sign Up Screen" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 33</span>
+                    <span class="route-badge">/register</span>
+                  </div>
+                  <h3 class="card-title">Sign Up Screen</h3>
+                  <p class="card-desc">Account registration with company name and owner credentials.</p>
+                  <div class="card-footer">
+                    <a href="33_auth_03_register.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('33_auth_03_register.png', 'Sign Up Screen', '/register')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('34_auth_04_forgot_password.png', 'Forgot Password Screen', '/forgot-password')">
+                  <img src="34_auth_04_forgot_password.png" alt="Forgot Password Screen" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 34</span>
+                    <span class="route-badge">/forgot-password</span>
+                  </div>
+                  <h3 class="card-title">Forgot Password Screen</h3>
+                  <p class="card-desc">Self-serve password reset request screen.</p>
+                  <div class="card-footer">
+                    <a href="34_auth_04_forgot_password.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('34_auth_04_forgot_password.png', 'Forgot Password Screen', '/forgot-password')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+          </div>
+        </div>
+      
+
+        <div id="cat-design-system">
+          <div class="section-title">
+            <span>Design System</span>
+            <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">(1 screens)</span>
+          </div>
+          <div class="grid">
+            
+              <div class="card">
+                <div class="img-wrapper" onclick="openLightbox('35_dev_component_showcase.png', 'Visual Card Showcase', '/dev/component-showcase')">
+                  <img src="35_dev_component_showcase.png" alt="Visual Card Showcase" loading="lazy">
+                </div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <span class="screen-number">Screen 35</span>
+                    <span class="route-badge">/dev/component-showcase</span>
+                  </div>
+                  <h3 class="card-title">Visual Card Showcase</h3>
+                  <p class="card-desc">2026 enterprise card system, metric widgets and SVG analytics components.</p>
+                  <div class="card-footer">
+                    <a href="35_dev_component_showcase.png" target="_blank" class="action-link">Open Full High-Res PNG ↗</a>
+                    <button type="button" class="action-link" style="background:none; border:none; cursor:pointer;" onclick="openLightbox('35_dev_component_showcase.png', 'Visual Card Showcase', '/dev/component-showcase')">Preview Zoom ⤢</button>
+                  </div>
+                </div>
+              </div>
+            
+          </div>
+        </div>
+      
+  </main>
+
+  <div id="lightbox" class="lightbox" onclick="closeLightbox(event)">
+    <div class="lightbox-content" onclick="event.stopPropagation()">
+      <div class="lightbox-header">
+        <div>
+          <strong id="lb-title">Screen Title</strong>
+          <span id="lb-route" class="route-badge" style="margin-left: 8px;">/route</span>
+        </div>
+        <button class="close-btn" onclick="closeLightbox()">&times;</button>
+      </div>
+      <div class="lightbox-img-wrap">
+        <img id="lb-img" src="" alt="">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openLightbox(file, title, route) {
+      document.getElementById('lb-img').src = file;
+      document.getElementById('lb-title').innerText = title;
+      document.getElementById('lb-route').innerText = route;
+      document.getElementById('lightbox').classList.add('active');
+    }
+    function closeLightbox(e) {
+      document.getElementById('lightbox').classList.remove('active');
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeLightbox();
+    });
+  </script>
+
+</body>
+</html>
